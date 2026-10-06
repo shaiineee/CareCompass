@@ -1,2 +1,0 @@
-# CareCompass
-Tencent competition - 
