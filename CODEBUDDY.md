@@ -1,8 +1,9 @@
 # CareCompass App
-## nav
+## functions
 - home
 - add
 - calendar
+  
 | Teammates  | Role     |
 |-------|----------|
 | Jayden  | () |
