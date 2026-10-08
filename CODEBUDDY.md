@@ -6,6 +6,6 @@
   
 | Teammates  | Role     |
 |-------|----------|
-| Jayden  | () |
-| Lakshmi   | ()  |
-| Shaine   | ()  |
+| Jayden  | backend(deep learning) |
+| Lakshmi   | frontend  |
+| Shaine   | backend  |
