@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#075b5f">
+  <meta name="description" content="CareCompass - an accessible care-plan companion prototype for older adults and caregivers.">
+  <title>CareCompass Prototype</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+
+  <div class="prototype-banner" role="note">
+    <span>CareCompass · Hackathon</span>
+    <strong>Synthetic information only</strong>
+    <span>Not a diagnostic or prescribing tool</span>
+  </div>
+
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48" role="img">
+            <circle cx="24" cy="24" r="19"></circle>
+            <path d="M29 15 25.7 25.7 15 29l10.7-3.3L29 15Z"></path>
+            <circle cx="24" cy="24" r="2.8"></circle>
+          </svg>
+        </div>
+        <div>
+          <p>CareForge</p>
+          <h1>CareCompass</h1>
+        </div>
+      </div>
+
+      <nav class="desktop-nav">
+        <button class="nav-item is-active" type="button" data-view-target="home" aria-current="page">
+          <span class="nav-icon" aria-hidden="true">⌂</span><span>Home</span>
+        </button>
+        <button class="nav-item" type="button" data-view-target="checkin">
+          <span class="nav-icon" aria-hidden="true">✓</span><span>Check-in</span>
+        </button>
+        <button class="nav-item" type="button" data-view-target="ask">
+          <span class="nav-icon" aria-hidden="true">✦</span><span>Ask Compass</span>
+        </button>
+        <button class="nav-item" type="button" data-view-target="calendar">
+          <span class="nav-icon" aria-hidden="true">□</span><span>Calendar</span>
+        </button>
+        <button class="nav-item" type="button" data-view-target="caregiver"><span class="nav-icon" aria-hidden="true">♡</span><span>Care circle</span></button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="caregiver-chip">
+          <span class="avatar avatar-small" aria-hidden="true">A</span>
+          <div><strong>Asha</strong><span>Caregiver connected</span></div>
+        </div>
+        <button class="text-button" type="button" data-action="reset-demo">Reset prototype</button>
+        <button class="text-button" type="button" data-view-target="setup">Team setup</button>
+      </div>
+    </aside>
+
+    <div class="app-main">
+      <header class="topbar">
+        <button class="mobile-brand" type="button" data-view-target="home" aria-label="Go to Home">
+          <span class="mini-compass" aria-hidden="true">✦</span>
+          <strong>CareCompass</strong>
+        </button>
+
+        <div class="topbar-actions">
+          <button class="utility-button" id="text-size-button" type="button" aria-pressed="false">
+            <span aria-hidden="true">Aa</span><span class="utility-label">Larger text</span>
+          </button>
+          <button class="utility-button" id="language-button" type="button" aria-haspopup="dialog">
+            <span aria-hidden="true">文</span><span class="utility-label" id="current-language">English</span>
+          </button>
+          <button class="profile-button" type="button" aria-label="Open user profile" data-action="open-profile">
+            <span class="avatar" aria-hidden="true">R</span>
+            <span class="profile-copy"><strong>Mr Rahman</strong><small>Patient profile</small></span>
+          </button>
+        </div>
+      </header>
+
+      <main id="main-content" tabindex="-1">
+        <div id="connection-status" class="connection-status" role="status">Connecting to your care records…</div>
+        <section class="view is-visible" id="view-home" data-view="home" aria-labelledby="home-title">
+          <div class="page-intro">
+            <div>
+              <p class="eyebrow" id="today-label">Friday, 16 October</p>
+              <h2 id="home-title">Good morning, Mr Rahman</h2>
+              <p class="lede">Here is your care plan for today. Take one step at a time.</p>
+            </div>
+            <button class="button button-secondary" type="button" data-action="open-upload">
+              <span aria-hidden="true">＋</span> Add care plan
+            </button>
+          </div>
+
+          <div class="home-grid">
+            <div class="primary-column">
+              <article class="progress-card">
+                <div>
+                  <p class="eyebrow">Today’s progress</p>
+                  <p class="progress-number"><strong id="completed-count">0</strong> of <span id="total-count">3</span> completed</p>
+                </div>
+                <div class="progress-ring" id="progress-ring" role="img" aria-label="0 of 3 tasks completed">
+                  <span id="progress-percent">0%</span>
+                </div>
+              </article>
+
+              <div class="section-heading">
+                <div><p class="eyebrow">Today</p><h3>Your next steps</h3></div>
+                <span class="source-badge">From confirmed care plan</span>
+              </div>
+
+              <div class="task-list" id="task-list">
+                <article class="task-card" data-task-id="medicine">
+                  <div class="task-time"><strong>8:00</strong><span>AM</span></div>
+                  <div class="task-body">
+                    <div class="task-title-row">
+                      <span class="task-type medicine" aria-hidden="true">Rx</span>
+                      <div><p class="task-kicker">Medication</p><h4>Take prescribed blood pressure medicine</h4></div>
+                    </div>
+                    <p class="task-note">Follow the exact instructions on your confirmed care plan.</p>
+                    <div class="task-actions">
+                      <button class="button button-ghost" type="button" data-action="toggle-details" aria-expanded="false">Explain steps</button>
+                      <button class="button button-primary" type="button" data-action="complete-task"><span aria-hidden="true">✓</span> Mark done</button>
+                    </div>
+                    <div class="task-details" hidden>
+                      <h5>From your confirmed plan</h5>
+                      <ol>
+                        <li>Check the label and medicine name before taking it.</li>
+                        <li>Follow the exact dose and timing written by your care professional.</li>
+                        <li>If the label is unclear or different from this app, pause and contact your pharmacist.</li>
+                      </ol>
+                      <button class="read-button" type="button" data-action="read-text">🔊 Read these steps aloud</button>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="task-card" data-task-id="ankles">
+                  <div class="task-time"><strong>7:00</strong><span>PM</span></div>
+                  <div class="task-body">
+                    <div class="task-title-row">
+                      <span class="task-type check" aria-hidden="true">✓</span>
+                      <div><p class="task-kicker">Care check</p><h4>Check your ankles</h4></div>
+                    </div>
+                    <p class="task-note">Follow the clinician-provided steps and record what you notice.</p>
+                    <div class="task-actions">
+                      <button class="button button-ghost" type="button" data-action="toggle-details" aria-expanded="false">Explain steps</button>
+                      <button class="button button-primary" type="button" data-action="go-checkin"><span aria-hidden="true">→</span> Start check-in</button>
+                    </div>
+                    <div class="task-details" hidden>
+                      <h5>Steps saved from your care plan</h5>
+                      <ol>
+                        <li>Sit down somewhere safe and look at both ankles.</li>
+                        <li>Follow the checking method demonstrated by your care professional.</li>
+                        <li>Record any change. If symptoms are sudden, severe or worrying, use Medical Assistance.</li>
+                      </ol>
+                      <button class="read-button" type="button" data-action="read-text">🔊 Read these steps aloud</button>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="task-card" data-task-id="teachback">
+                  <div class="task-time"><strong>8:15</strong><span>PM</span></div>
+                  <div class="task-body">
+                    <div class="task-title-row">
+                      <span class="task-type learn" aria-hidden="true">Aa</span>
+                      <div><p class="task-kicker">Understanding check</p><h4>Explain today’s plan in your own words</h4></div>
+                    </div>
+                    <p class="task-note">Compass compares your explanation with the confirmed source wording.</p>
+                    <div class="task-actions">
+                      <button class="button button-ghost" type="button" data-action="toggle-details" aria-expanded="false">Why this helps</button>
+                      <button class="button button-primary" type="button" data-action="go-ask"><span aria-hidden="true">🎙</span> Start teach-back</button>
+                    </div>
+                    <div class="task-details" hidden>
+                      <p>Teach-back checks understanding. It does not grade you or change your care plan. If something is unclear, Compass shows the original wording and suggests professional confirmation.</p>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <aside class="context-column" aria-label="Care overview">
+              <article class="info-card"><p class="eyebrow">Your confirmed source</p><h3>One clear plan. One step at a time.</h3><p>Review the original instructions whenever you are unsure. This demonstration uses synthetic data, not a real prescription.</p><button class="button button-ghost" type="button" data-action="view-source">Read my care plan</button></article>
+              <article class="info-card"><h3>Your reminder inbox</h3><div id="reminder-inbox" aria-live="polite"><p>Checking saved reminders…</p></div><button class="text-button" type="button" data-action="open-profile">Manage my reminders</button></article>
+              <article class="info-card next-appointment">
+                <div class="info-card-icon" aria-hidden="true">□</div>
+                <p class="eyebrow">Next appointment</p>
+                <h3>Health review</h3>
+                <p>Monday, 19 October · 10:30 AM</p>
+                <button class="text-button" type="button" data-action="go-calendar">View in calendar →</button>
+              </article>
+
+              <article class="info-card care-circle-card">
+                <div class="card-title-line"><div><p class="eyebrow">Care circle</p><h3>Who can see updates</h3></div><span class="status-dot"></span></div>
+                <div class="person-row"><span class="avatar avatar-small">A</span><div><strong>Asha</strong><small>Daughter · daily summaries</small></div><span class="permission-tag">Allowed</span></div>
+                <p class="privacy-note">You control what is shared. CareCompass will ask before sending a new health update.</p>
+                <button class="text-button" type="button" data-view-target="caregiver">Open care circle →</button>
+                <p><button class="text-button" type="button" data-view-target="setup">Team service setup →</button></p>
+              </article>
+
+              <article class="info-card trace-card">
+                <p class="eyebrow">How this step was prepared</p>
+                <h3>TRACE decision record</h3>
+                <ul class="trace-list">
+                  <li><span>1</span> Source wording retained</li>
+                  <li><span>2</span> User confirmation required</li>
+                  <li><span>3</span> Safety rules run in code</li>
+                  <li><span>4</span> Human escalation available</li>
+                </ul>
+              </article>
+            </aside>
+          </div>
+        </section>
+
+        <section class="view" id="view-checkin" data-view="checkin" aria-labelledby="checkin-title" hidden>
+          <div class="page-intro compact">
+            <div><p class="eyebrow">Two-minute check-in</p><h2 id="checkin-title">How are your ankles today?</h2><p class="lede">Your answers are checked against simple safety rules. CareCompass does not diagnose.</p></div>
+          </div>
+
+          <form class="checkin-layout" id="checkin-form">
+            <div class="form-panel">
+              <fieldset class="question-block">
+                <legend>1. How uncomfortable do they feel?</legend>
+                <div class="pain-scale" role="radiogroup" aria-label="Discomfort rating from 0 to 10">
+                  <label><input type="radio" name="pain" value="0" required><span>0<small>None</small></span></label>
+                  <label><input type="radio" name="pain" value="2"><span>2<small>Mild</small></span></label>
+                  <label><input type="radio" name="pain" value="4"><span>4<small>Noticeable</small></span></label>
+                  <label><input type="radio" name="pain" value="6"><span>6<small>Strong</small></span></label>
+                  <label><input type="radio" name="pain" value="8"><span>8<small>Severe</small></span></label>
+                  <label><input type="radio" name="pain" value="10"><span>10<small>Worst</small></span></label>
+                </div>
+              </fieldset>
+
+              <fieldset class="question-block">
+                <legend>2. What has changed?</legend>
+                <div class="choice-grid">
+                  <label class="choice-card"><input type="radio" name="change" value="better" required><span><strong>Better</strong><small>Less discomfort than before</small></span></label>
+                  <label class="choice-card"><input type="radio" name="change" value="same"><span><strong>About the same</strong><small>No clear change</small></span></label>
+                  <label class="choice-card"><input type="radio" name="change" value="worse"><span><strong>Worse</strong><small>More discomfort or swelling</small></span></label>
+                  <label class="choice-card"><input type="radio" name="change" value="sudden"><span><strong>Sudden change</strong><small>New or quickly worsening</small></span></label>
+                </div>
+              </fieldset>
+
+              <fieldset class="question-block">
+                <legend>3. Anything else you want to record?</legend>
+                <label class="sr-only" for="checkin-notes">Optional notes</label>
+                <div class="voice-field">
+                  <textarea id="checkin-notes" rows="4" placeholder="For example: It feels more swollen after walking."></textarea>
+                  <button class="mic-button" type="button" data-action="dictate" data-target="checkin-notes" aria-label="Speak your note">🎙</button>
+                </div>
+              </fieldset>
+
+              <p class="privacy-note">This check-in is saved privately. You can review and approve a caregiver update afterwards.</p>
+
+              <button class="button button-primary button-large" type="submit">Review my check-in</button>
+            </div>
+
+            <aside class="checkin-help">
+              <h3>What happens next?</h3>
+              <ol class="number-list">
+                <li><span>1</span><p><strong>Facts are recorded</strong>Your answers stay separate from AI-generated text.</p></li>
+                <li><span>2</span><p><strong>Safety rules are checked</strong>Severe, sudden or uncertain situations stop normal coaching.</p></li>
+                <li><span>3</span><p><strong>You stay in control</strong>You choose whether to contact a caregiver or professional.</p></li>
+              </ol>
+            </aside>
+          </form>
+
+          <div class="result-panel" id="checkin-result" aria-live="polite" hidden></div>
+          <section class="history-panel"><h3>Your recent check-ins</h3><div id="checkin-history"></div></section>
+        </section>
+
+        <section class="view" id="view-ask" data-view="ask" aria-labelledby="ask-title" hidden>
+          <div class="page-intro compact">
+            <div><p class="eyebrow">Ask Compass</p><h2 id="ask-title">Get help understanding your plan</h2><p class="lede">Ask by typing or speaking. Answers stay grounded in the confirmed demo care plan.</p></div>
+            <button class="button button-secondary" type="button" data-action="open-upload"><span aria-hidden="true">＋</span> Upload plan</button>
+          </div>
+
+          <div class="chat-layout">
+            <div class="chat-panel">
+              <div class="chat-thread" id="chat-thread" aria-live="polite" aria-label="Conversation with Compass">
+                <div class="message compass-message">
+                  <span class="message-avatar" aria-hidden="true">✦</span>
+                  <div><p>How can I help with your confirmed care plan today?</p><button class="read-inline" type="button" data-action="read-message">🔊 Read aloud</button></div>
+                </div>
+              </div>
+
+              <div class="suggestion-row" aria-label="Suggested questions">
+                <button type="button" data-prompt="Explain my evening ankle check">Explain my ankle check</button>
+                <button type="button" data-prompt="What should I do if I am unsure about my medicine label?">I’m unsure about my medicine</button>
+                <button type="button" data-prompt="Help me explain today's plan in my own words">Start teach-back</button>
+              </div>
+
+              <div class="chat-mode"><label for="chat-mode">I want to</label><select id="chat-mode"><option value="question">Ask about my plan</option><option value="teachback">Explain my plan in my own words</option></select></div>
+              <form class="chat-composer" id="chat-form">
+                <label class="sr-only" for="chat-input">Ask Compass</label>
+                <textarea id="chat-input" rows="2" placeholder="Type your question here"></textarea>
+                <button class="mic-button" type="button" data-action="dictate" data-target="chat-input" aria-label="Speak your question">🎙</button>
+                <button class="send-button" type="submit" aria-label="Send question">➜</button>
+              </form>
+              <p class="composer-note">Compass cannot diagnose or change medication. Urgent concerns use Medical Assistance.</p>
+            </div>
+
+            <aside class="source-panel">
+              <div class="card-title-line"><div><p class="eyebrow">Current source</p><h3>Confirmed demo care plan</h3></div><span class="verified-mark" aria-label="Verified">✓</span></div>
+              <div class="source-quote">
+                <span>Original wording</span>
+                <blockquote>“Take the medicine exactly as written on the dispensing label. Complete the evening ankle check and record any change.”</blockquote>
+              </div>
+              <p>Last confirmed by Mr Rahman · Today, 9:12 AM</p>
+              <button class="text-button" type="button" data-action="open-upload">Review or replace source →</button>
+            </aside>
+          </div>
+        </section>
+
+        <section class="view" id="view-caregiver" data-view="caregiver" aria-labelledby="caregiver-title" hidden>
+          <div class="page-intro"><div><p class="eyebrow">Your care circle</p><h2 id="caregiver-title">Keep the right people informed</h2><p class="lede">Review updates, choose what to share and keep a factual record for your care team.</p></div><button class="button button-secondary" type="button" data-action="open-profile">Manage sharing</button></div>
+          <div class="home-grid"><div class="primary-column"><article class="info-card"><h3>Caregiver updates</h3><p id="sharing-status"></p><button class="button button-primary" type="button" data-action="caregiver-help">Review a new update</button><div id="caregiver-alerts"></div></article><article class="info-card history-panel"><h3>Care activity record</h3><div id="audit-history"></div></article></div><aside class="context-column"><article class="info-card"><h3>For your care professional</h3><p>Download your confirmed care instructions, task completion and recent check-ins. Your recorded facts stay separate from interpretation.</p><button class="button button-secondary" type="button" data-action="professional-help">Download handover</button></article><article class="info-card"><h3>Your saved records</h3><p id="database-status">Checking connection…</p><button class="button button-ghost" type="button" data-action="export-backup">Download my backup</button><p class="privacy-note">Share code through GitHub, not private patient records or API keys. Backups can be restored in Team Setup.</p></article></aside></div>
+        </section>
+
+        <section class="view" id="view-calendar" data-view="calendar" aria-labelledby="calendar-title" hidden>
+          <div class="page-intro compact">
+            <div><p class="eyebrow">Care calendar</p><h2 id="calendar-title">Your week at a glance</h2><p class="lede">Home shows today. Calendar shows what is coming next for you and your caregiver.</p></div>
+            <button class="button button-secondary" type="button" data-action="add-reminder"><span aria-hidden="true">＋</span> Add reminder</button>
+          </div>
+
+          <div class="calendar-layout">
+            <div class="week-panel">
+              <div class="week-header">
+                <button type="button" aria-label="Previous week">‹</button>
+                <h3>16–22 October 2026</h3>
+                <button type="button" aria-label="Next week">›</button>
+              </div>
+              <div class="day-strip" role="list">
+                <button type="button" class="day is-selected" role="listitem"><span>Fri</span><strong>16</strong><i></i></button>
+                <button type="button" class="day" role="listitem"><span>Sat</span><strong>17</strong></button>
+                <button type="button" class="day" role="listitem"><span>Sun</span><strong>18</strong><i></i></button>
+                <button type="button" class="day" role="listitem"><span>Mon</span><strong>19</strong><i></i></button>
+                <button type="button" class="day" role="listitem"><span>Tue</span><strong>20</strong></button>
+                <button type="button" class="day" role="listitem"><span>Wed</span><strong>21</strong><i></i></button>
+                <button type="button" class="day" role="listitem"><span>Thu</span><strong>22</strong></button>
+              </div>
+
+              <div class="agenda">
+                <div class="agenda-date"><p>Friday</p><strong>16 October</strong></div>
+                <article class="agenda-item"><time>8:00 AM</time><span class="agenda-dot medicine"></span><div><p>Medication</p><h4>Prescribed blood pressure medicine</h4><span>Exact instructions confirmed</span></div><button type="button" data-action="go-home">View</button></article>
+                <article class="agenda-item"><time>7:00 PM</time><span class="agenda-dot check"></span><div><p>Care check</p><h4>Check ankles</h4><span>Record any change</span></div><button type="button" data-action="go-checkin">Start</button></article>
+                <article class="agenda-item"><time>8:15 PM</time><span class="agenda-dot learn"></span><div><p>Understanding</p><h4>Teach-back check</h4><span>Explain today’s plan</span></div><button type="button" data-action="go-ask">Start</button></article>
+              </div>
+            </div>
+
+            <aside class="upcoming-panel">
+              <p class="eyebrow">Coming up</p>
+              <h3>Appointments and check-ins</h3>
+              <article><span class="date-tile"><strong>19</strong>Oct</span><div><strong>Health review</strong><small>10:30 AM · Community clinic</small></div></article>
+              <article><span class="date-tile"><strong>21</strong>Oct</span><div><strong>Weekly care summary</strong><small>Shared only after your approval</small></div></article>
+              <article><span class="date-tile"><strong>23</strong>Oct</span><div><strong>Medication plan review</strong><small>Confirm details with pharmacist</small></div></article>
+              <p class="calendar-legend"><span></span> Orange dots mark appointments or weekly check-ins.</p>
+            </aside>
+          </div>
+        </section>
+        <section class="view" id="view-setup" data-view="setup" aria-labelledby="setup-title" hidden>
+          <div class="page-intro"><div><p class="eyebrow">Team setup · this computer</p><h2 id="setup-title">Your app is ready. Services are optional.</h2><p class="lede">The core demonstration works without accounts. GitHub is for sharing code; your care records stay on this computer. Add a provider only if you want live AI, email or SMS.</p></div><button class="button button-secondary" type="button" data-action="refresh-setup">Refresh status</button></div>
+          <div id="setup-status" class="setup-status" aria-live="polite">Checking service configuration…</div>
+          <form id="integrations-form" class="setup-grid">
+            <article class="info-card"><h3>1. AI explanations</h3><p>Use your team’s model API. A CodeBuddy sign-in or development credit is not automatically a model API key.</p><p><a href="https://intl.cloud.tencent.com/zh/document/product/1300/80695" target="_blank" rel="noopener">Tencent model connection guide ↗</a></p><label class="field-label">Chat-completions endpoint<input class="field-input" name="AI_CHAT_URL" type="url" placeholder="https://your-provider/v1/chat/completions"></label><label class="field-label">Model name<input class="field-input" name="AI_MODEL" placeholder="The exact model available in your account"></label><label class="field-label">API key<input class="field-input" name="AI_API_KEY" type="password" autocomplete="new-password" placeholder="Enter locally; saved keys are never displayed"></label><button class="button button-ghost" type="button" data-action="test-provider" data-kind="ai">Check saved AI connection</button><p class="privacy-note">When connected, uploaded synthetic source text can be sent to this provider. Exact source quotes remain visible; scheduling still requires confirmation.</p></article>
+            <article class="info-card"><h3>2. Email sending</h3><p>Configure either SMTP from your email provider, or a Resend API key. An account’s normal sign-in password may not work; use its supported SMTP/app credentials.</p><label class="field-label">Verified sender email<input class="field-input" name="EMAIL_FROM" type="email" placeholder="sender@your-verified-domain.com"></label><details><summary>SMTP connection</summary><label class="field-label">SMTP host<input class="field-input" name="SMTP_HOST" placeholder="smtp.your-provider.com"></label><div class="extraction-grid"><label><span>Port</span><input name="SMTP_PORT" type="number" placeholder="587"></label><label><span>Implicit TLS</span><select name="SMTP_SECURE"><option value="false">No — STARTTLS (usually 587)</option><option value="true">Yes (usually 465)</option></select></label></div><label class="field-label">SMTP username<input class="field-input" name="SMTP_USER" autocomplete="off"></label><label class="field-label">SMTP password/app credential<input class="field-input" name="SMTP_PASS" type="password" autocomplete="new-password"></label></details><details><summary>Or Resend API</summary><label class="field-label">Resend API key<input class="field-input" name="RESEND_API_KEY" type="password" autocomplete="new-password"></label><p><a href="https://resend.com/docs/send-with-nodejs" target="_blank" rel="noopener">Provider setup guide ↗</a></p></details><button class="button button-ghost" type="button" data-action="test-provider" data-kind="email">Check saved email connection</button><p class="privacy-note">Checking SMTP connects and authenticates without sending an email.</p></article>
+            <article class="info-card"><h3>3. SMS (optional)</h3><p>Email can be used on its own. For SMS, supply a Twilio account and an approved sender. Provider fees and recipient verification may apply.</p><label class="field-label">Twilio account SID<input class="field-input" name="TWILIO_ACCOUNT_SID" placeholder="AC…"></label><label class="field-label">Twilio auth token<input class="field-input" name="TWILIO_AUTH_TOKEN" type="password" autocomplete="new-password"></label><label class="field-label">Twilio sender number<input class="field-input" name="TWILIO_FROM" placeholder="+countrycode…"></label><p><a href="https://www.twilio.com/docs/messaging/quickstart" target="_blank" rel="noopener">SMS account setup guide ↗</a></p></article>
+            <article class="info-card"><h3>4. Your records and backups</h3><p id="local-backup-status"></p><p>No database account is needed. Backups include private care records, not service API keys. Restore only a backup you trust.</p><div class="modal-actions"><button class="button button-secondary" type="button" data-action="export-backup">Download my backup</button><button class="button button-ghost" type="button" data-action="import-backup">Restore a backup</button></div><p class="privacy-note">Restore replaces this browser's records. Reminders and caregiver consent are turned off so you can review them.</p></article>
+            <div class="setup-save"><p>Credentials stay in this computer’s private server settings. Blank password fields preserve saved credentials.</p><button class="button button-primary button-large" type="submit">Save service settings</button></div>
+          </form>
+          <article class="info-card history-panel"><h3>5. Background reminders and sending tests</h3><p id="scheduler-setup-status"></p><p>Save your recipient details and enable reminders in Profile. The Node server and computer must stay on; the browser tab can be closed.</p><button class="button button-secondary" type="button" data-action="open-profile">Set my recipient and consent</button><button class="button button-ghost" type="button" data-action="send-test" data-channel="email">Send a test email to me</button><button class="button button-ghost" type="button" data-action="send-test" data-channel="sms">Send a test SMS to me</button><p class="privacy-note">Test messages are sent only after your confirmation. SMS may incur your provider’s charges.</p><div id="notification-activity"></div></article>
+        </section>
+      </main>
+
+      <button class="assistance-fab" id="assistance-button" type="button" data-action="open-assistance">
+        <span class="assist-icon" aria-hidden="true">＋</span>
+        <span><strong>Medical Assistance</strong><small>Get human help</small></span>
+      </button>
+
+      <nav class="mobile-nav" aria-label="Mobile navigation">
+        <button class="is-active" type="button" data-view-target="home" aria-current="page"><span aria-hidden="true">⌂</span><small>Home</small></button>
+        <button type="button" data-view-target="checkin"><span aria-hidden="true">✓</span><small>Check-in</small></button>
+        <button type="button" data-view-target="ask"><span aria-hidden="true">✦</span><small>Ask</small></button>
+        <button type="button" data-view-target="calendar"><span aria-hidden="true">□</span><small>Calendar</small></button>
+      </nav>
+    </div>
+  </div>
+
+  <dialog class="modal" id="upload-modal" aria-labelledby="upload-title">
+    <form method="dialog" class="modal-frame" id="upload-form">
+      <div class="modal-header">
+        <div><p class="eyebrow">Care-plan intake</p><h2 id="upload-title">Add a care plan</h2></div>
+        <button class="close-button" value="cancel" aria-label="Close">×</button>
+      </div>
+
+      <div id="upload-step-select" class="modal-step">
+        <p>Upload a photo, text PDF or text file. Compare the extracted wording with the original before adding tasks. Use synthetic information for this hackathon.</p>
+        <label class="upload-zone" for="care-plan-file">
+          <span class="upload-icon" aria-hidden="true">⇧</span>
+          <strong>Choose a photo or PDF</strong>
+          <span>PDF, JPG, PNG or TXT · up to 8 MB</span>
+          <input id="care-plan-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.txt">
+        </label>
+        <button class="button button-primary button-large" type="button" data-action="scan-demo">Use demo care plan</button>
+        <details class="paste-plan"><summary>Or paste the exact care-plan wording</summary><label for="source-input">Care-plan source text</label><textarea id="source-input" rows="5" placeholder="Paste the original instructions here. Keep medicine names, doses and timings exactly as written."></textarea><button class="button button-secondary" type="button" data-action="parse-text">Review these instructions</button></details>
+      </div>
+
+      <div id="upload-step-processing" class="modal-step" hidden>
+        <div class="processing-state">
+          <div class="scanner" aria-hidden="true"><span></span></div>
+          <h3>Reading the care plan</h3>
+          <ul>
+            <li class="is-done">Document received</li>
+            <li class="is-active">Extracting exact source wording</li>
+            <li>Preparing fields for your review</li>
+          </ul>
+        </div>
+      </div>
+
+      <div id="upload-step-review" class="modal-step" hidden>
+        <div class="review-notice"><strong>Please check every field.</strong><span>CareCompass will not schedule anything until you confirm it.</span></div>
+        <p id="extraction-method"></p><p id="extraction-warning" class="privacy-note"></p>
+        <label class="field-label" for="plan-name">Name for this care plan</label><input class="field-input" id="plan-name" maxlength="120">
+        <div class="source-compare">
+          <p>Source wording retained</p>
+          <pre id="review-source"></pre>
+        </div>
+        <div id="extraction-items"></div>
+        <button class="text-button" type="button" data-action="add-extracted-task">＋ Add a task from the source</button>
+        <label class="consent-check"><input id="replace-plan" type="checkbox"><span>Replace my current care plan and its active tasks.</span></label>
+        <label class="consent-check"><input id="confirm-extraction" type="checkbox"><span>I checked these details against the original care plan.</span></label>
+        <div class="modal-actions">
+          <button class="button button-ghost" type="button" data-action="edit-extraction">Correct source wording</button>
+          <button class="button button-primary" type="button" data-action="confirm-plan" disabled>Confirm and add schedule</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="assistance-modal" aria-labelledby="assistance-title">
+    <form method="dialog" class="modal-frame assistance-frame">
+      <div class="modal-header">
+        <div><p class="eyebrow danger-text">Human support</p><h2 id="assistance-title">What kind of help do you need?</h2></div>
+        <button class="close-button" value="cancel" aria-label="Close">×</button>
+      </div>
+      <p class="assistance-intro">CareCompass cannot diagnose an emergency. If something feels severe, sudden or immediately unsafe, contact emergency services now.</p>
+      <p><a class="button button-primary" href="tel:995">Call 995 — Singapore emergency ambulance</a></p><p class="privacy-note">For life-threatening emergencies in Singapore only. Outside Singapore, use your local emergency number. A phone-capable device is needed; this app does not call automatically.</p>
+      <div class="assistance-options">
+        <button type="button" class="assistance-option emergency" data-action="emergency-help"><span aria-hidden="true">!</span><div><strong>Emergency help</strong><small>View emergency calling options</small></div><b>→</b></button>
+        <button type="button" class="assistance-option" data-action="caregiver-help"><span aria-hidden="true">A</span><div><strong>Contact Asha</strong><small>Ask your authorised caregiver to call you</small></div><b>→</b></button>
+        <button type="button" class="assistance-option" data-action="professional-help"><span aria-hidden="true">+</span><div><strong>Prepare care-team summary</strong><small>Create a factual summary for professional review</small></div><b>→</b></button>
+      </div>
+      <div id="emergency-options" class="assistance-intro" hidden><strong>For an immediately unsafe situation, contact your local emergency services now.</strong><p>Use your phone’s emergency calling feature. CareCompass cannot call or monitor emergency services for you.</p></div><p class="privacy-note">Nothing is shared until you choose an option and confirm it.</p>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="profile-modal" aria-labelledby="profile-title"><form class="modal-frame" id="profile-form">
+    <div class="modal-header"><h2 id="profile-title">Your profile and sharing</h2><button class="close-button" type="button" data-action="close-dialog" aria-label="Close">×</button></div>
+    <p>Synthetic demonstration profile. Save recipient details here; service credentials belong in Team Setup.</p>
+    <label class="field-label" for="profile-name">Your display name</label><input class="field-input" id="profile-name" maxlength="60" required>
+    <h3>Your background reminders</h3>
+    <label class="field-label" for="patient-email">Your recipient email</label><input class="field-input" id="patient-email" type="email" maxlength="254">
+    <label class="field-label" for="patient-phone">Your telephone (for SMS)</label><input class="field-input" id="patient-phone" type="tel" placeholder="+countrycode…" maxlength="25">
+    <label class="field-label" for="reminder-channel">Save or send my reminders by</label><select class="field-input" id="reminder-channel"><option value="inapp">In-app inbox — no account needed</option><option value="email">Email — provider needed</option><option value="sms">SMS — provider needed</option></select>
+    <label class="consent-check"><input id="reminders-enabled" type="checkbox"><span>Enable my background reminders. The computer and server must stay on. In-app reminders appear when I reopen CareCompass; they are not phone push notifications.</span></label>
+    <h3>Your caregiver</h3>
+    <label class="field-label" for="profile-caregiver">Caregiver name</label><input class="field-input" id="profile-caregiver" maxlength="60">
+    <label class="field-label" for="caregiver-email">Caregiver email</label><input class="field-input" id="caregiver-email" type="email" maxlength="254">
+    <label class="field-label" for="caregiver-phone">Caregiver telephone</label><input class="field-input" id="caregiver-phone" type="tel" maxlength="25" placeholder="+countrycode…">
+    <label class="field-label" for="caregiver-channel">Send approved updates by</label><select class="field-input" id="caregiver-channel"><option value="email">Email</option><option value="sms">SMS</option></select>
+    <label class="consent-check"><input id="caregiver-consent" type="checkbox"><span>I authorise caregiver updates. Ask me to approve each update before sharing it.</span></label>
+    <p class="privacy-note">No caregiver message is sent without approval of its exact summary. Background reminders for you contain minimal information.</p>
+    <button class="button button-primary" type="submit">Save preferences</button>
+  </form></dialog>
+
+  <dialog class="modal" id="reminder-modal" aria-labelledby="reminder-title"><form class="modal-frame" id="reminder-form"><div class="modal-header"><h2 id="reminder-title">Add a reminder</h2><button class="close-button" type="button" data-action="close-dialog" aria-label="Close">×</button></div><label class="field-label" for="reminder-name">What should we remind you about?</label><input class="field-input" id="reminder-name" maxlength="120" required><div class="extraction-grid"><label><span>Date</span><input id="reminder-date" type="date" required></label><label><span>Time</span><input id="reminder-time" type="time" required></label></div><label class="field-label" for="reminder-type">Type</label><select class="field-input" id="reminder-type"><option value="reminder">Reminder</option><option value="appointment">Appointment</option><option value="checkin">Check-in</option></select><label class="field-label" for="reminder-notes">Notes (optional)</label><textarea id="reminder-notes" rows="3" maxlength="1000"></textarea><p class="privacy-note">Reminders appear in Calendar and can be announced while this app is open.</p><button class="button button-primary" type="submit">Save reminder</button></form></dialog>
+
+  <dialog class="modal" id="share-modal" aria-labelledby="share-title"><div class="modal-frame"><div class="modal-header"><h2 id="share-title">Review your caregiver update</h2><button class="close-button" type="button" data-action="close-dialog" aria-label="Close">×</button></div><p>This update includes your active care instructions, task completion and recent check-ins.</p><pre id="share-preview" class="summary-preview"></pre><p id="share-delivery-note" class="privacy-note"></p><div class="modal-actions"><button class="button button-ghost" type="button" data-action="close-dialog">Cancel</button><button class="button button-primary" type="button" data-action="confirm-share">I approve this update</button></div></div></dialog>
+
+  <dialog class="modal" id="language-modal" aria-labelledby="language-title">
+    <form method="dialog" class="modal-frame language-frame">
+      <div class="modal-header"><div><p class="eyebrow">Accessibility</p><h2 id="language-title">Choose a language</h2></div><button class="close-button" value="cancel" aria-label="Close">×</button></div>
+      <p>Core navigation and the greeting will change. Clinical source wording stays visible for comparison.</p>
+      <div class="language-list">
+        <button type="button" data-language="English"><strong>English</strong><span>English</span></button>
+        <button type="button" data-language="简体中文"><strong>简体中文</strong><span>Chinese</span></button>
+        <button type="button" data-language="Bahasa Melayu"><strong>Bahasa Melayu</strong><span>Malay</span></button>
+        <button type="button" data-language="தமிழ்"><strong>தமிழ்</strong><span>Tamil</span></button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <div class="sr-only" id="live-region" aria-live="assertive"></div>
+
+  <input id="backup-file" type="file" accept=".json,application/json" hidden>
+  <script src="app.js"></script>
+</body>
+</html>

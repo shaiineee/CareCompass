@@ -1,0 +1,145 @@
+const { chromium } = require('playwright');
+const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
+const { existsSync } = require('node:fs');
+const { createApp } = require('../app');
+
+(async () => {
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'carecompass-browser-'));
+  const artifacts = path.join(__dirname, '..', 'artifacts');
+  await fs.mkdir(artifacts, { recursive: true });
+  const app = await createApp({ dataFile: path.join(folder, 'state.json'), skipExternal: true });
+  const server = app.listen(0, 'localhost');
+  await new Promise(resolve => server.once('listening', resolve));
+  let browser;
+  try {
+    const executablePath = process.env.BROWSER_PATH || ['C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'].find(existsSync);
+    browser = await chromium.launch({ executablePath, headless: true, args: ['--no-sandbox', '--disable-gpu'] });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.goto(`http://localhost:${server.address().port}`);
+    await page.locator('#task-list .task-card').first().waitFor();
+    assert.equal(await page.locator('#task-list .task-card').count(), 3);
+    await page.locator('#task-list [data-action="toggle-details"]').first().click();
+    await page.locator('#task-list [data-action="ask-task"]').first().click();
+    assert.ok((await page.locator('#chat-input').inputValue()).includes('Please explain this instruction:'));
+    await page.locator('.desktop-nav [data-view-target="home"]').click();
+    await page.locator('[data-action="complete-task"]').first().click();
+    await page.waitForFunction(() => document.querySelector('#completed-count').textContent === '1');
+    await page.reload();
+    await page.waitForFunction(() => document.querySelector('#completed-count').textContent === '1');
+    console.log('PASS task completion survives reload');
+    await page.screenshot({ path: path.join(artifacts, 'desktop-home.png'), fullPage: true });
+
+    await page.locator('.desktop-nav [data-view-target="checkin"]').click();
+    await page.locator('input[name="pain"][value="2"]').check({ force: true });
+    await page.locator('input[name="change"][value="better"]').check({ force: true });
+    await page.locator('#checkin-form button[type="submit"]').click();
+    await page.waitForFunction(() => document.querySelector('#checkin-result').textContent.includes('Check-in saved'));
+    await page.locator('input[name="pain"][value="8"]').check({ force: true });
+    await page.locator('input[name="change"][value="sudden"]').check({ force: true });
+    await page.locator('#checkin-form button[type="submit"]').click();
+    await page.waitForFunction(() => document.querySelector('#checkin-result').textContent.includes('Please get human help'));
+    assert.equal(await page.locator('#checkin-history .history-entry').count(), 2);
+    console.log('PASS normal and urgent check-ins with history');
+    await page.screenshot({ path: path.join(artifacts, 'checkin-escalation.png'), fullPage: true });
+
+    await page.locator('.desktop-nav [data-view-target="ask"]').click();
+    await page.locator('#chat-input').fill('My medicine and chest pain worry me');
+    await page.locator('.send-button').click();
+    await page.locator('.message.is-urgent').waitFor();
+    await page.locator('#chat-input').fill('Diagnose this unknown rash');
+    await page.locator('.send-button').click();
+    await page.waitForFunction(() => document.querySelector('#chat-thread').textContent.includes('could not find support'));
+    console.log('PASS urgent chat precedence and unsupported-answer handling');
+
+    await page.locator('.desktop-nav [data-view-target="home"]').click();
+    await page.locator('[data-action="open-upload"]').first().click();
+    await page.locator('.paste-plan summary').click();
+    await page.locator('#source-input').fill('Check your ankles daily at 8:00 PM.');
+    await page.locator('[data-action="parse-text"]').click();
+    await page.locator('#extraction-items .extracted-item').waitFor();
+    assert.equal(await page.locator('#extraction-items [data-field="time"]').inputValue(), '20:00');
+    assert.equal(await page.locator('[data-action="confirm-plan"]').isDisabled(), true);
+    await page.locator('#confirm-extraction').check();
+    await page.locator('[data-action="confirm-plan"]').click();
+    await page.waitForFunction(() => document.querySelectorAll('#task-list .task-card').length === 4);
+    console.log('PASS care-plan source review and confirmed scheduling');
+
+    await page.locator('.desktop-nav [data-view-target="calendar"]').click();
+    await page.locator('[data-action="add-reminder"]').click();
+    await page.locator('#reminder-name').fill('Team demo review');
+    await page.locator('#reminder-time').fill('14:30');
+    await page.locator('#reminder-form button[type="submit"]').click();
+    await page.waitForFunction(() => document.querySelector('.agenda').textContent.includes('Team demo review'));
+    await page.reload();
+    await page.waitForFunction(() => document.querySelector('.agenda').textContent.includes('Team demo review'));
+    const firstWeek = await page.locator('.week-header h3').textContent();
+    await page.locator('.week-header button').last().click();
+    await page.waitForFunction(old => document.querySelector('.week-header h3').textContent !== old, firstWeek);
+    console.log('PASS reminders save and calendar week navigation works');
+
+    await page.locator('.desktop-nav [data-view-target="caregiver"]').click();
+    await page.locator('[data-action="caregiver-help"]').first().click();
+    await page.locator('#profile-modal').waitFor({ state: 'visible' });
+    await page.locator('#caregiver-consent').check();
+    await page.locator('#profile-form button[type="submit"]').click();
+    await page.locator('[data-action="caregiver-help"]').first().click();
+    await page.locator('#share-modal').waitFor({ state: 'visible' });
+    await page.locator('[data-action="confirm-share"]').click();
+    await page.locator('#caregiver-alerts .history-entry').waitFor();
+    assert.ok((await page.locator('#caregiver-alerts').textContent()).includes('Saved to the local caregiver inbox'));
+    await page.locator('[data-action="acknowledge-alert"]').click();
+    await page.waitForFunction(() => document.querySelector('#caregiver-alerts').textContent.includes('Reviewed in this demonstration'));
+    console.log('PASS caregiver permission, explicit approval and local inbox');
+
+    const downloadPromise = page.waitForEvent('download');
+    await page.locator('#view-caregiver [data-action="professional-help"]').click();
+    const download = await downloadPromise;
+    assert.equal(download.suggestedFilename(), 'carecompass-handover.txt');
+    console.log('PASS factual handover download');
+
+    const backupPromise = page.waitForEvent('download');
+    await page.locator('#view-caregiver [data-action="export-backup"]').click();
+    const backupDownload = await backupPromise;
+    const backupPath = await backupDownload.path();
+    const backup = JSON.parse(await fs.readFile(backupPath, 'utf8'));
+    assert.equal(backup.format, 'carecompass-backup');
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#backup-file').setInputFiles({ name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)) });
+    await page.waitForFunction(() => document.querySelector('#toast').textContent.includes('Backup restored'));
+    assert.ok((await page.locator('#sharing-status').textContent()).includes('sharing is off'));
+    console.log('PASS backup download/restore with fresh sharing consent required');
+
+    await page.locator('.desktop-nav [data-view-target="home"]').click();
+    await page.locator('[data-action="view-source"]').click();
+    assert.ok((await page.locator('.source-quote blockquote').textContent()).includes('Check your ankles'));
+    console.log('PASS Home shortcut shows the confirmed source');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('.mobile-nav [data-view-target="home"]').click();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'mobile should not overflow horizontally');
+    await page.screenshot({ path: path.join(artifacts, 'mobile-home.png'), fullPage: true });
+    await page.locator('#assistance-button').click();
+    await page.locator('#assistance-modal').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#assistance-modal').evaluate(el => el.getBoundingClientRect().width <= innerWidth), true);
+    console.log('PASS mobile layout and persistent medical assistance');
+    await page.keyboard.press('Escape');
+    await page.locator('[data-view-target="setup"]').filter({ hasText: 'Team service setup' }).click();
+    await page.locator('.service-status').first().waitFor();
+    assert.equal(await page.locator('.service-status').count(), 4);
+    assert.ok((await page.locator('#scheduler-setup-status').textContent()).includes('not running in this instance'));
+    assert.equal(await page.locator('#integrations-form input[type="password"]').evaluateAll(inputs => inputs.every(input => input.value === '')), true);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await page.screenshot({ path: path.join(artifacts, 'mobile-team-setup.png') });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.screenshot({ path: path.join(artifacts, 'desktop-team-setup.png') });
+    console.log('PASS service setup readiness and private credential fields on desktop/mobile');
+    assert.deepEqual(errors, [], `Browser errors: ${errors.join('; ')}`);
+    console.log('All browser checks passed. Screenshots are in artifacts/.');
+  } finally { if (browser) await browser.close(); await new Promise(resolve => server.close(resolve)); }
+})().catch(error => { console.error(error); process.exitCode = 1; });
