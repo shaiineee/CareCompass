@@ -54,6 +54,7 @@
           <span class="avatar avatar-small" aria-hidden="true">A</span>
           <div><strong>Asha</strong><span>Caregiver connected</span></div>
         </div>
+        <button class="text-button" type="button" data-action="open-auth" id="sidebar-auth-btn">Account: Sign in</button>
         <button class="text-button" type="button" data-action="reset-demo">Reset prototype</button>
         <button class="text-button" type="button" data-view-target="setup">Team setup</button>
       </div>
@@ -501,6 +502,30 @@
         <button type="button" data-language="Bahasa Melayu"><strong>Bahasa Melayu</strong><span>Malay</span></button>
         <button type="button" data-language="தமிழ்"><strong>தமிழ்</strong><span>Tamil</span></button>
       </div>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="auth-modal" aria-labelledby="auth-title">
+    <form class="modal-frame" id="auth-form">
+      <div class="modal-header">
+        <div><p class="eyebrow">Account</p><h2 id="auth-title">Sign in or register</h2></div>
+        <button class="close-button" value="cancel" aria-label="Close" type="button">×</button>
+      </div>
+      <p id="auth-intro">Create an account or sign in to sync your care records. You can also continue exploring the demo without an account.</p>
+      <p id="auth-error" class="upload-error" role="alert" hidden></p>
+      <label class="form-field">
+        <span>Email</span>
+        <input id="auth-email" type="email" autocomplete="email" placeholder="you@example.com" required>
+      </label>
+      <label class="form-field">
+        <span>Password</span>
+        <input id="auth-password" type="password" autocomplete="current-password" minlength="6" required>
+      </label>
+      <div class="result-actions">
+        <button class="button button-primary" type="submit" data-auth-mode="login">Sign in</button>
+        <button class="button button-secondary" type="submit" data-auth-mode="register">Create account</button>
+      </div>
+      <p class="privacy-note" id="auth-status-text"></p>
     </form>
   </dialog>
 
