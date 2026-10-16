@@ -164,25 +164,44 @@
   function openUpload() {
     if (scanPending) return toast('Your document is still being read.');
     draft = null; $('#upload-step-select').hidden = false; $('#upload-step-processing').hidden = true; $('#upload-step-review').hidden = true;
-    $('#care-plan-file').value = ''; $('#medicine-file').value = ''; $('#confirm-extraction').checked = false; $('#replace-plan').checked = false; $('[data-action="confirm-plan"]').disabled = true; openDialog($('#upload-modal'));
+    $('#care-plan-file').value = ''; $('#medicine-file').value = ''; $('#upload-error').hidden = true; $('#confirm-extraction').checked = false; $('#replace-plan').checked = false; $('[data-action="confirm-plan"]').disabled = true; openDialog($('#upload-modal'));
   }
-  async function scan(kind) {
-    if (scanPending) return; scanPending = true;
+  let cameraStream = null;
+  async function openCamera() {
+    if (!navigator.mediaDevices?.getUserMedia) return toast('This browser cannot open the camera. Choose a photo instead.');
+    // Some embedded browsers never answer the permission request, so give up after 10 seconds.
+    try { cameraStream = await Promise.race([navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 } }, audio: false }), new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))]); }
+    catch { return toast('Camera permission was blocked or no camera was found. Allow camera access or choose a photo instead.', 9000); }
+    $('#camera-video').srcObject = cameraStream; $('#camera-panel').hidden = false;
+  }
+  function closeCamera() { cameraStream?.getTracks().forEach(track => track.stop()); cameraStream = null; $('#camera-video').srcObject = null; $('#camera-panel').hidden = true; }
+  async function snapCamera() {
+    const video = $('#camera-video'); if (!cameraStream || !video.videoWidth) return toast('The camera is still starting. Try again in a moment.');
+    const canvas = document.createElement('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight; canvas.getContext('2d').drawImage(video, 0, 0);
+    const photo = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+    closeCamera(); await scan('medicine', photo);
+  }
+  async function scan(kind, photo) {
+    if (scanPending) return; scanPending = true; $('#upload-error').hidden = true;
     $('#upload-step-select').hidden = true; $('#upload-step-processing').hidden = false; $('#upload-step-review').hidden = true;
     try {
       if (kind === 'demo') draft = await api('/plans/demo', { method: 'POST', body: {} });
       else if (kind === 'text') draft = await api('/plans/text', { method: 'POST', body: { sourceText: $('#source-input').value } });
       else if (kind === 'team') draft = await api('/integrations/tasks/review', { method: 'POST', body: {}, timeout: 30000 });
       else if (kind === 'medicine') {
-        const file = $('#medicine-file').files[0]; if (!file) throw new Error('Take or choose a photo of the medicine label first.'); if (file.size > 8 * 1024 * 1024) throw new Error('Choose a photo smaller than 8 MB.');
-        const body = new FormData(); body.append('file', file); draft = await api('/medicines/scan', { method: 'POST', body, timeout: 120000 });
+        const file = photo || $('#medicine-file').files[0]; if (!file) throw new Error('Take or choose a photo of the medicine label first.'); if (file.size > 8 * 1024 * 1024) throw new Error('Choose a photo smaller than 8 MB.');
+        const body = new FormData(); body.append('file', file, file.name || 'camera-photo.jpg'); draft = await api('/medicines/scan', { method: 'POST', body, timeout: 120000 });
       }
       else {
         const file = $('#care-plan-file').files[0]; if (!file) throw new Error('Choose a care-plan file first.'); if (file.size > 8 * 1024 * 1024) throw new Error('Choose a file smaller than 8 MB.');
         const body = new FormData(); body.append('file', file); draft = await api('/plans/upload', { method: 'POST', body, timeout: 120000 });
       }
       renderDraft();
-    } catch (error) { $('#upload-step-select').hidden = false; $('#upload-step-processing').hidden = true; showError(error); }
+    } catch (error) {
+      $('#upload-step-select').hidden = false; $('#upload-step-processing').hidden = true; showError(error);
+      // Toasts sit behind the open dialog, so repeat the message inside it.
+      $('#upload-error').textContent = error.message || 'Please try again.'; $('#upload-error').hidden = false; $('#upload-error').scrollIntoView({ block: 'center' });
+    }
     finally { scanPending = false; }
   }
   function renderDraft() {
@@ -324,7 +343,7 @@
       else if (action === 'go-home') showView('home');
       else if (action === 'go-calendar') { selectedDate = state.today; weekStart = state.today; showView('calendar'); }
       else if (action === 'calendar-task') { const task = activeTasks().find(item => item.id === target.dataset.id); if (task?.type === 'checkin') { selectedTaskId = task.id; showView('checkin'); } else if (task?.type === 'teachback') { showView('ask'); $('#chat-mode').value = 'teachback'; } else showView('home'); }
-      else if (action === 'open-upload') openUpload(); else if (action === 'scan-demo') await scan('demo'); else if (action === 'parse-text') await scan('text');
+      else if (action === 'open-upload') openUpload(); else if (action === 'scan-demo') await scan('demo'); else if (action === 'open-camera') await openCamera(); else if (action === 'snap-camera') await snapCamera(); else if (action === 'close-camera') closeCamera(); else if (action === 'parse-text') await scan('text');
       else if (action === 'import-team-tasks') { openUpload(); await scan('team'); }
       else if (action === 'add-extracted-task') addExtractionRow();
       else if (action === 'remove-extracted-task') { target.closest('.extracted-item').remove(); $('#confirm-extraction').checked = false; $('[data-action="confirm-plan"]').disabled = true; }
@@ -370,6 +389,7 @@
   }));
   $('#care-plan-file').addEventListener('change', () => { if ($('#care-plan-file').files.length) scan('file'); });
   $('#medicine-file').addEventListener('change', () => { if ($('#medicine-file').files.length) scan('medicine'); });
+  $('#upload-modal').addEventListener('close', closeCamera);
   $('#confirm-extraction').addEventListener('change', () => { $('[data-action="confirm-plan"]').disabled = !$('#confirm-extraction').checked; });
   $('#extraction-items').addEventListener('input', () => { $('#confirm-extraction').checked = false; $('[data-action="confirm-plan"]').disabled = true; });
   $('#text-size-button').addEventListener('click', event => busy(event.currentTarget, async () => { await api('/profile', { method: 'PATCH', body: { largeText: !state.profile.largeText } }); await refresh(); }));

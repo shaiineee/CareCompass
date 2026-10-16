@@ -219,7 +219,9 @@ async function createApp(options = {}) {
       const warning = unmatched.length ? `AI read this label, but OCR could not confirm the ${unmatched.join(' and ')}. Check them carefully against the packaging.` : 'AI read this label and OCR agrees on the name and strength. Still compare every line with the packaging.';
       return res.status(201).json(await mutate(req, data => makeDraft(data, label.sourceText, { filename: `${label.medicine.name} ${label.medicine.strength}`.trim(), method: 'AI medicine label reading', aiStatus: label.aiStatus, medicine: label.medicine, matched: label.matched, warning })));
     }
-    const warning = label.aiStatus === 'not-configured' ? 'AI is not set up, so only OCR text was read. Add an AI vision model in Team Setup for better label reading.' : label.aiStatus === 'not-a-medicine-label' ? 'This does not look like a medicine label. Try a clearer photo of the packaging.' : 'AI could not read this label, so only OCR text is shown. Check every line against the packaging.';
+    if (label.aiStatus === 'not-a-medicine-label') fail(`${label.seen ? `This looks like ${label.seen}, not a medicine label.` : 'This does not look like a medicine label.'} Take a clear photo of the medicine box or pharmacy label.`, 422);
+    const busy = /provider-error-(429|5\d\d)|unavailable/.test(label.aiStatus);
+    const warning = label.aiStatus === 'not-configured' ? 'AI is not set up, so only OCR text was read. Add an AI vision model in Team Setup for better label reading.' : busy ? 'The AI service was busy, so only OCR text is shown. Close this and scan again in a moment for a better result.' : 'AI could not read this label, so only OCR text is shown. Check every line against the packaging.';
     res.status(201).json(await mutate(req, data => makeDraft(data, ocr.text, { filename: 'Scanned medicine label', method: ocr.method, confidence: ocr.confidence, aiStatus: label.aiStatus, warning })));
   });
   app.post('/api/plans/:id/confirm', async (req, res) => {
@@ -380,7 +382,7 @@ async function createApp(options = {}) {
     res.json({ ok: true });
   });
   app.use('/api', (req, res) => res.status(404).json({ error: 'This action is not available.' }));
-  app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny', etag: false, setHeaders: res => res.set('Cache-Control', 'no-cache') }));
+  app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny', etag: false, lastModified: false, setHeaders: res => res.set('Cache-Control', 'no-store') }));
   app.use((error, req, res, next) => {
     const status = error.code === 'LIMIT_FILE_SIZE' ? 413 : error.status || 500;
     const message = error.code === 'LIMIT_FILE_SIZE' ? 'The file is too large. Choose a file under 8 MB.' : status < 500 || error.expose ? error.message : 'The action could not be saved. Please try again; no success has been assumed.';
