@@ -395,6 +395,12 @@ textarea { resize: vertical; padding: 15px 58px 15px 15px; }
 .receipt-item span { display: block; margin-bottom: 5px; color: var(--ink-soft); font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
 .result-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
 
+/* Auth */
+.form-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.form-field span { font-weight: 700; font-size: 13px; }
+.form-field input { padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 15px; background: var(--surface); color: var(--ink); }
+.form-field input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
 /* Ask */
 .chat-layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(285px, .68fr); gap: 28px; align-items: start; }
 .chat-panel { overflow: hidden; border-radius: var(--radius-xl); border: 1px solid var(--line); background: white; box-shadow: var(--shadow); }

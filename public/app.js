@@ -57,6 +57,7 @@
   async function initialize() {
     $('#task-list').innerHTML = '<p class="empty-state">Loading your care plan…</p>';
     try {
+      await checkAuth();
       await refresh(); renderMessages();
       const initialView = location.hash.slice(1);
       showView(['home', 'checkin', 'ask', 'calendar', 'caregiver', 'setup'].includes(initialView) ? initialView : 'home');
@@ -371,6 +372,8 @@
       else if (action === 'send-test') { const channel = target.dataset.channel; if (!confirm(`Send one ${channel} test message to your own contact saved in Profile? This uses your provider account; SMS may incur charges. No medical details will be included.`)) return; const result = await api('/notifications/test', { method: 'POST', body: { confirmed: true, channel } }); toast(result.message, 10000); await renderNotificationActivity(); }
       else if (action === 'retry-notification') { const unknown = target.dataset.unknown === 'true'; if (!confirm(unknown ? 'The earlier sending result is unknown. Check your provider first. Retrying may send a duplicate. Do you approve another attempt?' : 'Retry sending this saved notification? Current consent and recipient details will be checked again.')) return; await api(`/notifications/${target.dataset.id}/retry`, { method: 'POST', body: { confirmed: true, allowPossibleDuplicate: unknown } }); await renderNotificationActivity(); toast('Retry approved. The background worker will process it.'); }
       else if (action === 'reset-demo') { if (!confirm('Reset this browser’s demonstration care records? The original team database tasks will not be deleted.')) return; await api('/reset', { method: 'POST', body: { confirmed: true } }); selectedTaskId = null; selectedDate = null; weekStart = null; $('#checkin-result').hidden = true; await refresh(); renderMessages(); showView('home'); toast('This demonstration profile was reset.'); }
+      else if (action === 'open-auth') openAuth();
+      else if (action === 'logout') { await api('/auth/logout', { method: 'POST' }); await refresh(); updateAuthUI(null); toast('You have been signed out. A fresh demo session has started.'); }
     });
   });
   $('#chat-form').addEventListener('submit', event => { event.preventDefault(); sendChat($('#chat-input').value); });
@@ -390,6 +393,53 @@
   $('#care-plan-file').addEventListener('change', () => { if ($('#care-plan-file').files.length) scan('file'); });
   $('#medicine-file').addEventListener('change', () => { if ($('#medicine-file').files.length) scan('medicine'); });
   $('#upload-modal').addEventListener('close', closeCamera);
+
+  // ─── Auth ───
+  async function checkAuth() {
+    try { const data = await api('/auth/me'); updateAuthUI(data.user); return data.user; }
+    catch { updateAuthUI(null); return null; }
+  }
+  function updateAuthUI(user) {
+    const btn = $('#sidebar-auth-btn'); if (!btn) return;
+    if (user) {
+      btn.textContent = `Account: ${user.email}`;
+      btn.dataset.action = 'logout';
+    } else {
+      btn.textContent = 'Account: Sign in';
+      btn.dataset.action = 'open-auth';
+    }
+  }
+  function openAuth() {
+    const dialog = $('#auth-modal');
+    $('#auth-error').hidden = true;
+    $('#auth-email').value = '';
+    $('#auth-password').value = '';
+    $('#auth-status-text').textContent = '';
+    openDialog(dialog);
+    $('#auth-email').focus();
+  }
+  async function submitAuth(event) {
+    event.preventDefault();
+    const sub = event.submitter; if (!sub) return;
+    const mode = sub.dataset.authMode || 'login';
+    const email = $('#auth-email').value.trim();
+    const password = $('#auth-password').value;
+    const errorEl = $('#auth-error');
+    errorEl.hidden = true;
+    try {
+      const result = await api(`/auth/${mode}`, { method: 'POST', body: { email, password } });
+      closeDialog($('#auth-modal'));
+      selectedTaskId = null; selectedDate = null; weekStart = null;
+      await refresh(); renderMessages();
+      updateAuthUI(result.user);
+      toast(mode === 'register' ? `Account created. Welcome, ${result.user.email}.` : `Signed in as ${result.user.email}.`);
+    } catch (error) {
+      errorEl.textContent = error.message;
+      errorEl.hidden = false;
+    }
+  }
+  $('#auth-form').addEventListener('submit', submitAuth);
+  $('#auth-modal .close-button').addEventListener('click', () => closeDialog($('#auth-modal')));
   $('#confirm-extraction').addEventListener('change', () => { $('[data-action="confirm-plan"]').disabled = !$('#confirm-extraction').checked; });
   $('#extraction-items').addEventListener('input', () => { $('#confirm-extraction').checked = false; $('[data-action="confirm-plan"]').disabled = true; });
   $('#text-size-button').addEventListener('click', event => busy(event.currentTarget, async () => { await api('/profile', { method: 'PATCH', body: { largeText: !state.profile.largeText } }); await refresh(); }));

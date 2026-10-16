@@ -11,6 +11,7 @@ const { Scheduler, makeJob } = require('./lib/scheduler');
 const providers = require('./lib/providers');
 const configuration = require('./lib/configuration');
 const cloud = require('./lib/cloud');
+const auth = require('./lib/auth');
 const { makeBackup, readBackup } = require('./lib/backup');
 
 const string = (value, max = 1000) => typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -64,6 +65,7 @@ async function createApp(options = {}) {
         }
       }
       const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map(part => part.trim().split('=')));
+      req.cookies = cookies;
       let id = cookies.cc_session;
       if (!id || !/^[0-9a-f-]{36}$/i.test(id)) { id = uid(); res.cookie('cc_session', id, { httpOnly: true, sameSite: 'strict', maxAge: 30 * 86400000, path: '/' }); }
       req.sessionId = id;
@@ -86,6 +88,62 @@ async function createApp(options = {}) {
     if (!options.skipExternal) services.backupProfile(req.sessionId, profile(req));
     return result;
   };
+
+  // ─── Auth routes (register, login, logout, me) ───
+  // Uses Supabase Auth server-side. On login, the Supabase user ID becomes the
+  // session ID, so each user's care profile is tied to their account.
+  app.post('/api/auth/register', async (req, res, next) => {
+    try {
+      const email = string(req.body.email, 254).toLowerCase();
+      const password = typeof req.body.password === 'string' ? req.body.password : '';
+      if (!email || !email.includes('@')) fail('Please enter a valid email address.');
+      if (password.length < 6) fail('Password must be at least 6 characters long.');
+      if (!auth.ready()) fail('Supabase is not configured. Ask your team to set SUPABASE_ENABLED, SUPABASE_URL and SUPABASE_SECRET_KEY.');
+      const user = await auth.register(email, password);
+      // Link the new user to this session so their existing demo data carries over.
+      await store.ensure(user.id);
+      res.cookie('cc_session', user.id, { httpOnly: true, sameSite: 'strict', maxAge: 30 * 86400000, path: '/' });
+      res.cookie('cc_token', user.accessToken || '', { httpOnly: true, sameSite: 'strict', maxAge: 30 * 86400000, path: '/' });
+      res.status(201).json({ ok: true, user: { id: user.id, email: user.email } });
+    } catch (error) { next(error); }
+  });
+
+  app.post('/api/auth/login', async (req, res, next) => {
+    try {
+      const email = string(req.body.email, 254).toLowerCase();
+      const password = typeof req.body.password === 'string' ? req.body.password : '';
+      if (!email || !password) fail('Please enter your email and password.');
+      if (!auth.ready()) fail('Supabase is not configured. Ask your team to set SUPABASE_ENABLED, SUPABASE_URL and SUPABASE_SECRET_KEY.');
+      const user = await auth.login(email, password);
+      // Migrate the anonymous session's data to the user's account if the user
+      // has no profile yet — this preserves any demo data they were exploring.
+      const existing = store.get(user.id);
+      const anonProfile = store.get(req.sessionId);
+      if (!existing && anonProfile) {
+        await store.change(user.id, data => { Object.assign(data, structuredClone(anonProfile)); audit(data, 'account_login_migrated_anonymous_data'); });
+      }
+      await store.ensure(user.id);
+      res.cookie('cc_session', user.id, { httpOnly: true, sameSite: 'strict', maxAge: 30 * 86400000, path: '/' });
+      res.cookie('cc_token', user.accessToken, { httpOnly: true, sameSite: 'strict', maxAge: 30 * 86400000, path: '/' });
+      res.json({ ok: true, user: { id: user.id, email: user.email } });
+    } catch (error) { next(error); }
+  });
+
+  app.post('/api/auth/logout', (req, res) => {
+    // Start a fresh anonymous session.
+    const newId = uid();
+    res.cookie('cc_session', newId, { httpOnly: true, sameSite: 'strict', maxAge: 30 * 86400000, path: '/' });
+    res.clearCookie('cc_token', { path: '/' });
+    res.json({ ok: true, message: 'You have been signed out. A fresh demo session has started.' });
+  });
+
+  app.get('/api/auth/me', async (req, res) => {
+    const token = req.cookies?.cc_token;
+    if (!token) return res.json({ user: null });
+    const user = await auth.getUserByToken(token);
+    if (!user) return res.json({ user: null });
+    res.json({ user });
+  });
 
   app.get('/api/health', async (req, res) => res.json({ ok: true, date: today(), storage: 'local persistent records', supabase: options.skipExternal ? { configured: false, connected: false, message: 'External services disabled for this test.' } : await services.checkSupabase(), ai: { configured: providers.providerStatus().ai, defaultMode: 'confirmed-plan guidance and source comparison' }, notifications: { configured: providers.providerStatus().email || providers.providerStatus().sms || Boolean(process.env.CAREGIVER_WEBHOOK_URL), ...providers.providerStatus() }, scheduler: scheduler.status(), cloud: cloud.status() }));
   app.get('/api/state', (req, res) => {
