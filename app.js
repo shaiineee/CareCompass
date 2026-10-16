@@ -44,9 +44,11 @@ async function createApp(options = {}) {
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1 } });
   const limits = new Map();
 
+  // Render sets RENDER_EXTERNAL_HOSTNAME automatically; ALLOWED_HOSTS adds custom domains (comma-separated).
+  const allowedHosts = new Set(['localhost', '127.0.0.1', '[::1]', '::1', process.env.RENDER_EXTERNAL_HOSTNAME, ...(process.env.ALLOWED_HOSTS || '').split(',')].map(host => host?.trim().toLowerCase()).filter(Boolean));
   app.disable('x-powered-by');
   app.use((req, res, next) => {
-    if (!['localhost', '127.0.0.1', '[::1]', '::1'].includes(req.hostname)) return res.status(403).json({ error: 'This application accepts local connections only.' });
+    if (!allowedHosts.has(req.hostname)) return res.status(403).json({ error: 'This application accepts local connections only.' });
     res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'X-Frame-Options': 'DENY', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'" });
     if (req.path.startsWith('/api/')) res.set('Cache-Control', 'no-store');
     next();
@@ -394,7 +396,9 @@ async function createApp(options = {}) {
 
 if (require.main === module) configuration.loadConfiguration().then(() => createApp({ startScheduler: true })).then(app => {
   const port = Number(process.env.PORT || 3000);
-  const server = app.listen(port, 'localhost', error => { if (!error) console.log(`CareCompass is running at http://localhost:${port}\nKeep this terminal open. Press Ctrl+C to stop.`); });
+  // Hosting platforms such as Render route traffic in from outside, so listen on all interfaces there.
+  const host = process.env.HOST || (process.env.RENDER ? '0.0.0.0' : 'localhost');
+  const server = app.listen(port, host, error => { if (!error) console.log(process.env.RENDER_EXTERNAL_URL ? `CareCompass is running at ${process.env.RENDER_EXTERNAL_URL}` : `CareCompass is running at http://localhost:${port}\nKeep this terminal open. Press Ctrl+C to stop.`); });
   server.on('error', error => { app.locals.stopWorkers(); console.error(error.code === 'EADDRINUSE' ? `Port ${port} is already in use. Stop the previous CareCompass server and try again.` : 'The local server could not start.'); process.exitCode = 1; });
   const stop = () => { app.locals.stopWorkers(); server.close(() => process.exit(0)); };
   process.once('SIGTERM', stop); process.once('SIGINT', stop);

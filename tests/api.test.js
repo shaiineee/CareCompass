@@ -25,6 +25,17 @@ async function request(url, { method = 'GET', body, headers = {}, session = true
 before(async () => { folder = await fs.mkdtemp(path.join(os.tmpdir(), 'carecompass-test-')); await start(); });
 after(async () => { await new Promise(resolve => server.close(resolve)); /* Retain isolated temp results for inspection. */ });
 
+test('only localhost and the configured Render hostname are accepted', async () => {
+  const http = require('node:http');
+  const old = process.env.RENDER_EXTERNAL_HOSTNAME; process.env.RENDER_EXTERNAL_HOSTNAME = 'carecompass.onrender.com';
+  const app = await createApp({ dataFile: path.join(folder, 'host-state.json'), skipExternal: true });
+  const hosted = app.listen(0, 'localhost'); await new Promise(resolve => hosted.once('listening', resolve));
+  const status = host => new Promise((resolve, reject) => http.get({ port: hosted.address().port, host: 'localhost', path: '/api/health', headers: { Host: host } }, res => { res.resume(); resolve(res.statusCode); }).on('error', reject));
+  try {
+    assert.equal(await status('carecompass.onrender.com'), 200);
+    assert.equal(await status('evil.example.com'), 403);
+  } finally { await new Promise(resolve => hosted.close(resolve)); if (old === undefined) delete process.env.RENDER_EXTERNAL_HOSTNAME; else process.env.RENDER_EXTERNAL_HOSTNAME = old; }
+});
 test('frontend and API share a server; credentials are not served', async () => {
   assert.equal((await request('/')).status, 200);
   assert.equal((await request('/app.js')).status, 200);
