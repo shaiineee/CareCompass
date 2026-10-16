@@ -648,3 +648,6 @@ button:disabled { cursor: wait; opacity: .6; }
 
 .upload-error { margin: 0 0 12px; padding: 12px 16px; border-radius: 12px; background: #fdecea; color: #8a1c12; font-weight: 600; }
 
+@media (max-width: 9999px) { #header-account-button .utility-label { display: inline; } }
+#header-account-button { white-space: nowrap; }
+

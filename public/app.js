@@ -404,9 +404,13 @@
     const data = await api('/auth/me'); updateAuthUI(data); return data;
   }
   function updateAuthUI(session) {
+    // The header button is visible on phones too, where the sidebar is hidden.
+    const header = $('#header-account-button');
+    header.hidden = !(session?.user || (session?.demo && session.authRequired));
+    $('#header-account-label').textContent = session?.user ? 'Sign out' : 'Exit demo';
     const btn = $('#sidebar-auth-btn'); if (!btn) return;
     if (session?.user) { btn.textContent = `Sign out (${session.user.email})`; btn.dataset.action = 'logout'; }
-    else if (session?.demo) { btn.textContent = 'Demo mode · Sign in'; btn.dataset.action = 'open-auth'; }
+    else if (session?.demo && session.authRequired) { btn.textContent = 'Exit demo · Sign in'; btn.dataset.action = 'logout'; }
     else { btn.textContent = 'Account: Sign in'; btn.dataset.action = 'open-auth'; }
   }
   // When sign-in is required the dialog cannot be dismissed until the visitor signs in or picks the demo.
