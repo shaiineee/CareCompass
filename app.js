@@ -267,16 +267,25 @@ async function createApp(options = {}) {
     if (source.length < 15) fail('Paste at least one complete care instruction.');
     res.status(201).json(await reviewedDraft(req, source, { filename: string(req.body.name, 120) || 'Pasted care plan', method: 'manually supplied source' }));
   });
+  const isImageFile = file => file.buffer.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) || (file.buffer[0] === 0xff && file.buffer[1] === 0xd8);
   app.post('/api/plans/upload', upload.single('file'), async (req, res) => {
     if (!req.file) fail('Choose a file first.');
-    const read = await services.readDocument(req.file);
+    const read = await services.readDocument(req.file, { vision: !options.skipExternal });
+    // A photo of medicine packaging has no care instructions, so read it as a medicine label instead.
+    if (isImageFile(req.file) && read.aiVision && !extractCandidates(read.text).length) {
+      const medicine = await medicineDraft(req).catch(() => null);
+      if (medicine) return res.status(201).json(medicine);
+    }
+    if (isImageFile(req.file) && !read.aiVision && read.confidence !== undefined && read.confidence < 60) fail('This photo could not be read clearly. Hold it closer, in good light, or paste the exact wording instead.', 422);
     res.status(201).json(await reviewedDraft(req, read.text, read));
   });
   app.post('/api/medicines/scan', upload.single('file'), async (req, res) => {
     if (!req.file) fail('Take or choose a photo of the medicine label first.');
-    const isImage = req.file.buffer.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) || (req.file.buffer[0] === 0xff && req.file.buffer[1] === 0xd8);
-    if (!isImage) fail('Choose a JPG or PNG photo of the medicine label.', 415);
-    const ocr = options.skipExternal ? { text: '', method: 'disabled-for-test' } : await services.readDocument(req.file);
+    if (!isImageFile(req.file)) fail('Choose a JPG or PNG photo of the medicine label.', 415);
+    res.status(201).json(await medicineDraft(req));
+  });
+  async function medicineDraft(req) {
+    const ocr = options.skipExternal ? { text: '', method: 'disabled-for-test' } : await services.readDocument(req.file, { vision: false });
     const mime = req.file.buffer[0] === 0xff ? 'image/jpeg' : 'image/png';
     const label = options.skipExternal && !options.allowAI ? { ok: false, aiStatus: 'disabled-for-test' } : await readMedicineLabel({ buffer: req.file.buffer, mime }, ocr.text);
     if (label.ok) {
@@ -284,7 +293,7 @@ async function createApp(options = {}) {
       const about = label.medicine.aboutMedicine ? `About this medicine (general AI information, not from your label): ${label.medicine.aboutMedicine} ` : '';
       const check = unmatched.length ? `AI read this label, but OCR could not confirm the ${unmatched.join(' and ')}. Check them carefully against the packaging.` : 'AI read this label and OCR agrees on the name and strength. Still compare every line with the packaging.';
       const warning = `${about}${label.medicine.directions ? '' : 'No dosing directions were printed, so confirm the dose and time with your pharmacist. '}${check}`;
-      return res.status(201).json(await mutate(req, data => makeDraft(data, label.sourceText, { filename: `${label.medicine.name} ${label.medicine.strength}`.trim(), method: 'AI medicine label reading', aiStatus: label.aiStatus, medicine: label.medicine, matched: label.matched, warning })));
+      return mutate(req, data => makeDraft(data, label.sourceText, { filename: `${label.medicine.name} ${label.medicine.strength}`.trim(), method: 'AI medicine label reading', aiStatus: label.aiStatus, medicine: label.medicine, matched: label.matched, warning }));
     }
     if (label.aiStatus === 'not-a-medicine-label') fail(`${label.seen ? `This looks like ${label.seen}, not a medicine label.` : 'This does not look like a medicine label.'} Take a clear photo of the medicine box or pharmacy label.`, 422);
     // Raw OCR of a photographed box is usually unreadable, so explain the failure instead of showing it.
@@ -295,8 +304,8 @@ async function createApp(options = {}) {
     if (/provider-error-(400|401|403)/.test(label.aiStatus)) fail('The AI key on this server was rejected. Check AI_API_KEY in the server settings.', 503);
     const warning = 'AI could not read this label, so only OCR text is shown. Check every line against the packaging.';
     if (ocr.confidence !== undefined && ocr.confidence < 60) fail('This photo could not be read clearly. Hold the label closer, in good light, and scan again.', 422);
-    res.status(201).json(await mutate(req, data => makeDraft(data, ocr.text, { filename: 'Scanned medicine label', method: ocr.method, confidence: ocr.confidence, aiStatus: label.aiStatus, warning })));
-  });
+    return mutate(req, data => makeDraft(data, ocr.text, { filename: 'Scanned medicine label', method: ocr.method, confidence: ocr.confidence, aiStatus: label.aiStatus, warning }));
+  }
   app.post('/api/plans/:id/confirm', async (req, res) => {
     if (req.body.confirmed !== true) fail('Compare every field with the source and tick the confirmation box.');
     const result = await mutate(req, data => {
