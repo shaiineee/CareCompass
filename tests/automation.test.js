@@ -6,7 +6,7 @@ const os = require('node:os');
 const { Store, today } = require('../lib/store');
 const { Scheduler, makeJob } = require('../lib/scheduler');
 const { extractStructured, readTimes, sourceContains, analyzeInstruction } = require('../lib/extraction');
-const { explainWithAI, extractWithAI } = require('../lib/ai');
+const { explainWithAI, extractWithAI, readMedicineLabel } = require('../lib/ai');
 const providers = require('../lib/providers');
 
 async function fixture(sender) {
@@ -68,6 +68,24 @@ test('AI output with an altered decimal or invented source is rejected', async (
     assert.equal(result.providerStatus, 'rejected-unsupported-output'); assert.equal(result.text, 'Original source guidance');
     global.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ instructions: ['Take an invented medicine daily.'] }) } }] }), { headers: { 'Content-Type': 'application/json' } });
     const parsed = await extractWithAI(source, extractStructured(source)); assert.equal(parsed.aiStatus, 'invalid-source-quotes');
+  } finally { global.fetch = fetch; for (const key of keys) if (old[key] === undefined) delete process.env[key]; else process.env[key] = old[key]; }
+});
+test('AI medicine label reading builds reviewable source text and cross-checks it against OCR', async () => {
+  const keys = ['AI_CHAT_URL', 'AI_API_KEY', 'AI_MODEL']; const old = Object.fromEntries(keys.map(key => [key, process.env[key]])); const fetch = global.fetch;
+  Object.assign(process.env, { AI_CHAT_URL: 'https://example.invalid/chat', AI_API_KEY: 'synthetic-test', AI_MODEL: 'synthetic-vision' });
+  const image = { buffer: Buffer.from([0xff, 0xd8, 0xff]), mime: 'image/jpeg' };
+  const reply = value => async (url, options) => { const body = JSON.parse(options.body); assert.equal(body.messages[1].content[1].type, 'image_url'); return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(value) } }] }), { headers: { 'Content-Type': 'application/json' } }); };
+  try {
+    global.fetch = reply({ isMedicineLabel: true, name: 'Examplemed', strength: '5 mg', form: 'tablet', directions: 'Take 1 tablet of Examplemed 5 mg once daily at 8 am.', warnings: ['May cause drowsiness'] });
+    const label = await readMedicineLabel(image, 'EXAMPLEMED 5mg tablets Take 1 tablet once daily');
+    assert.equal(label.ok, true); assert.deepEqual(label.matched, { name: true, strength: true });
+    assert.match(label.sourceText, /^Medicine: Examplemed 5 mg tablet\nTake 1 tablet/);
+    const tasks = extractStructured(label.sourceText); assert.ok(tasks.some(task => task.time === '08:00'));
+    const unconfirmed = await readMedicineLabel(image, 'blurry'); assert.deepEqual(unconfirmed.matched, { name: false, strength: false });
+    global.fetch = reply({ isMedicineLabel: false });
+    assert.equal((await readMedicineLabel(image, '')).aiStatus, 'not-a-medicine-label');
+    global.fetch = reply({ isMedicineLabel: true, name: 'Examplemed', directions: '' });
+    assert.equal((await readMedicineLabel(image, '')).aiStatus, 'label-unreadable');
   } finally { global.fetch = fetch; for (const key of keys) if (old[key] === undefined) delete process.env[key]; else process.env[key] = old[key]; }
 });
 test('email/SMS adapters preserve provider acceptance and sending uncertainty instead of declaring delivery', async () => {

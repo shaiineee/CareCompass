@@ -402,6 +402,12 @@
           <span>PDF, JPG, PNG or TXT · up to 8 MB</span>
           <input id="care-plan-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.txt">
         </label>
+        <label class="upload-zone" for="medicine-file">
+          <span class="upload-icon" aria-hidden="true">💊</span>
+          <strong>Scan a medicine label</strong>
+          <span>Photo of the box or pharmacy label · JPG or PNG · AI reads it</span>
+          <input id="medicine-file" type="file" accept="image/jpeg,image/png" capture="environment">
+        </label>
         <button class="button button-primary button-large" type="button" data-action="scan-demo">Use demo care plan</button>
         <details class="paste-plan"><summary>Or paste the exact care-plan wording</summary><label for="source-input">Care-plan source text</label><textarea id="source-input" rows="5" placeholder="Paste the original instructions here. Keep medicine names, doses and timings exactly as written."></textarea><button class="button button-secondary" type="button" data-action="parse-text">Review these instructions</button></details>
       </div>

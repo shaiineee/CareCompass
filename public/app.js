@@ -164,7 +164,7 @@
   function openUpload() {
     if (scanPending) return toast('Your document is still being read.');
     draft = null; $('#upload-step-select').hidden = false; $('#upload-step-processing').hidden = true; $('#upload-step-review').hidden = true;
-    $('#care-plan-file').value = ''; $('#confirm-extraction').checked = false; $('#replace-plan').checked = false; $('[data-action="confirm-plan"]').disabled = true; openDialog($('#upload-modal'));
+    $('#care-plan-file').value = ''; $('#medicine-file').value = ''; $('#confirm-extraction').checked = false; $('#replace-plan').checked = false; $('[data-action="confirm-plan"]').disabled = true; openDialog($('#upload-modal'));
   }
   async function scan(kind) {
     if (scanPending) return; scanPending = true;
@@ -173,6 +173,10 @@
       if (kind === 'demo') draft = await api('/plans/demo', { method: 'POST', body: {} });
       else if (kind === 'text') draft = await api('/plans/text', { method: 'POST', body: { sourceText: $('#source-input').value } });
       else if (kind === 'team') draft = await api('/integrations/tasks/review', { method: 'POST', body: {}, timeout: 30000 });
+      else if (kind === 'medicine') {
+        const file = $('#medicine-file').files[0]; if (!file) throw new Error('Take or choose a photo of the medicine label first.'); if (file.size > 8 * 1024 * 1024) throw new Error('Choose a photo smaller than 8 MB.');
+        const body = new FormData(); body.append('file', file); draft = await api('/medicines/scan', { method: 'POST', body, timeout: 120000 });
+      }
       else {
         const file = $('#care-plan-file').files[0]; if (!file) throw new Error('Choose a care-plan file first.'); if (file.size > 8 * 1024 * 1024) throw new Error('Choose a file smaller than 8 MB.');
         const body = new FormData(); body.append('file', file); draft = await api('/plans/upload', { method: 'POST', body, timeout: 120000 });
@@ -183,7 +187,7 @@
   }
   function renderDraft() {
     $('#upload-step-processing').hidden = true; $('#upload-step-review').hidden = false;
-    $('#extraction-method').textContent = `Read using ${draft.method}. ${draft.confidence !== undefined ? `OCR confidence: ${draft.confidence}% (not clinical accuracy).` : ''} ${draft.aiStatus === 'connected-source-checked' ? 'AI-assisted extraction; source quotes checked.' : 'Source-based extraction; AI is not active for this draft.'}`;
+    $('#extraction-method').textContent = `Read using ${draft.method}. ${draft.confidence !== undefined ? `OCR confidence: ${draft.confidence}% (not clinical accuracy).` : ''} ${draft.aiStatus === 'connected-source-checked' ? 'AI-assisted extraction; source quotes checked.' : draft.aiStatus === 'connected-vision-label' ? 'AI vision read the medicine label.' :'Source-based extraction; AI is not active for this draft.'}`;
     $('#extraction-warning').textContent = draft.warning || 'Compare every instruction with the original. Choose the schedule only after checking it.';
     $('#review-source').textContent = draft.sourceText || 'No text could be read. Choose “Correct source wording” and paste the exact instructions.';
     $('#plan-name').value = draft.filename || 'My care plan'; $('#extraction-items').innerHTML = ''; draft.candidates.forEach(addExtractionRow);
@@ -365,6 +369,7 @@
     } finally { event.target.value = ''; }
   }));
   $('#care-plan-file').addEventListener('change', () => { if ($('#care-plan-file').files.length) scan('file'); });
+  $('#medicine-file').addEventListener('change', () => { if ($('#medicine-file').files.length) scan('medicine'); });
   $('#confirm-extraction').addEventListener('change', () => { $('[data-action="confirm-plan"]').disabled = !$('#confirm-extraction').checked; });
   $('#extraction-items').addEventListener('input', () => { $('#confirm-extraction').checked = false; $('[data-action="confirm-plan"]').disabled = true; });
   $('#text-size-button').addEventListener('click', event => busy(event.currentTarget, async () => { await api('/profile', { method: 'PATCH', body: { largeText: !state.profile.largeText } }); await refresh(); }));

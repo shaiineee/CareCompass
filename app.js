@@ -6,7 +6,7 @@ const { Store, today, uid, addDays, audit, seedProfile, DEMO_SOURCE } = require(
 const { evaluateCheckIn, extractCandidates, planAnswer, normalize } = require('./lib/care');
 const services = require('./lib/services');
 const { analyzeInstruction, sourceContains } = require('./lib/extraction');
-const { extractWithAI } = require('./lib/ai');
+const { extractWithAI, readMedicineLabel } = require('./lib/ai');
 const { Scheduler, makeJob } = require('./lib/scheduler');
 const providers = require('./lib/providers');
 const configuration = require('./lib/configuration');
@@ -65,13 +65,14 @@ async function createApp(options = {}) {
       let id = cookies.cc_session;
       if (!id || !/^[0-9a-f-]{36}$/i.test(id)) { id = uid(); res.cookie('cc_session', id, { httpOnly: true, sameSite: 'strict', maxAge: 30 * 86400000, path: '/' }); }
       req.sessionId = id;
-      const key = `${id}:${req.path === '/plans/upload' ? 'upload' : 'api'}`;
+      const isUpload = ['/plans/upload', '/medicines/scan'].includes(req.path);
+      const key = `${id}:${isUpload ? 'upload' : 'api'}`;
       const now = Date.now();
       const entry = limits.get(key) || { start: now, count: 0 };
       if (now - entry.start > 60000) { entry.start = now; entry.count = 0; }
       entry.count++;
       limits.set(key, entry);
-      if (entry.count > (req.path === '/plans/upload' ? 6 : 180)) return res.status(429).json({ error: 'Please wait a moment before trying again.' });
+      if (entry.count > (isUpload ? 6 : 180)) return res.status(429).json({ error: 'Please wait a moment before trying again.' });
       if (limits.size > 2000) for (const [oldKey, old] of limits) if (now - old.start > 60000) limits.delete(oldKey);
       await store.ensure(id);
       next();
@@ -205,6 +206,21 @@ async function createApp(options = {}) {
     if (!req.file) fail('Choose a file first.');
     const read = await services.readDocument(req.file);
     res.status(201).json(await reviewedDraft(req, read.text, read));
+  });
+  app.post('/api/medicines/scan', upload.single('file'), async (req, res) => {
+    if (!req.file) fail('Take or choose a photo of the medicine label first.');
+    const isImage = req.file.buffer.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) || (req.file.buffer[0] === 0xff && req.file.buffer[1] === 0xd8);
+    if (!isImage) fail('Choose a JPG or PNG photo of the medicine label.', 415);
+    const ocr = options.skipExternal ? { text: '', method: 'disabled-for-test' } : await services.readDocument(req.file);
+    const mime = req.file.buffer[0] === 0xff ? 'image/jpeg' : 'image/png';
+    const label = options.skipExternal && !options.allowAI ? { ok: false, aiStatus: 'disabled-for-test' } : await readMedicineLabel({ buffer: req.file.buffer, mime }, ocr.text);
+    if (label.ok) {
+      const unmatched = [!label.matched.name && 'name', label.medicine.strength && !label.matched.strength && 'strength'].filter(Boolean);
+      const warning = unmatched.length ? `AI read this label, but OCR could not confirm the ${unmatched.join(' and ')}. Check them carefully against the packaging.` : 'AI read this label and OCR agrees on the name and strength. Still compare every line with the packaging.';
+      return res.status(201).json(await mutate(req, data => makeDraft(data, label.sourceText, { filename: `${label.medicine.name} ${label.medicine.strength}`.trim(), method: 'AI medicine label reading', aiStatus: label.aiStatus, medicine: label.medicine, matched: label.matched, warning })));
+    }
+    const warning = label.aiStatus === 'not-configured' ? 'AI is not set up, so only OCR text was read. Add an AI vision model in Team Setup for better label reading.' : label.aiStatus === 'not-a-medicine-label' ? 'This does not look like a medicine label. Try a clearer photo of the packaging.' : 'AI could not read this label, so only OCR text is shown. Check every line against the packaging.';
+    res.status(201).json(await mutate(req, data => makeDraft(data, ocr.text, { filename: 'Scanned medicine label', method: ocr.method, confidence: ocr.confidence, aiStatus: label.aiStatus, warning })));
   });
   app.post('/api/plans/:id/confirm', async (req, res) => {
     if (req.body.confirmed !== true) fail('Compare every field with the source and tick the confirmation box.');
