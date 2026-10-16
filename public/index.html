@@ -511,8 +511,12 @@
         <div><p class="eyebrow">Account</p><h2 id="auth-title">Sign in or register</h2></div>
         <button class="close-button" value="cancel" aria-label="Close" type="button">×</button>
       </div>
-      <p id="auth-intro">Create an account or sign in to sync your care records. You can also continue exploring the demo without an account.</p>
+      <p id="auth-intro">Sign in to see your own care records, or create an account to start fresh. Judges and visitors can try the demo patient instead.</p>
       <p id="auth-error" class="upload-error" role="alert" hidden></p>
+      <label class="form-field">
+        <span>Your name <small>(only needed to create an account)</small></span>
+        <input id="auth-name" type="text" autocomplete="name" maxlength="80" placeholder="e.g. Tan Mei Ling">
+      </label>
       <label class="form-field">
         <span>Email</span>
         <input id="auth-email" type="email" autocomplete="email" placeholder="you@example.com" required>
@@ -524,6 +528,7 @@
       <div class="result-actions">
         <button class="button button-primary" type="submit" data-auth-mode="login">Sign in</button>
         <button class="button button-secondary" type="submit" data-auth-mode="register">Create account</button>
+        <button class="button button-ghost" type="button" data-action="try-demo">Try the demo instead</button>
       </div>
       <p class="privacy-note" id="auth-status-text"></p>
     </form>

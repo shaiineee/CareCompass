@@ -27,6 +27,7 @@
     }).catch(error => { throw new Error(error.name === 'TimeoutError' ? 'The server took too long to respond. Please try again.' : 'CareCompass could not reach the server. Check that npm start is still running, then retry.'); });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
+      if (data.signInRequired) openAuth(true);
       throw new Error(data.error || 'This action could not be completed. Please try again.');
     }
     return response.headers.get('content-type')?.includes('application/json') ? response.json() : response.text();
@@ -57,7 +58,8 @@
   async function initialize() {
     $('#task-list').innerHTML = '<p class="empty-state">Loading your care plan…</p>';
     try {
-      await checkAuth();
+      const session = await checkAuth();
+      if (session.authRequired && !session.user && !session.demo) { $('#task-list').innerHTML = ''; openAuth(true); return; }
       await refresh(); renderMessages();
       const initialView = location.hash.slice(1);
       showView(['home', 'checkin', 'ask', 'calendar', 'caregiver', 'setup'].includes(initialView) ? initialView : 'home');
@@ -336,7 +338,9 @@
     const action = target.dataset.action; if (!action) return; event.preventDefault();
     busy(target, async () => {
       const taskId = target.closest('[data-task-id]')?.dataset.taskId;
-      if (action === 'retry-connection') return initialize(); if (action === 'close-dialog') return closeDialog(target.closest('dialog')); if (!state) return;
+      if (action === 'retry-connection') return initialize(); if (action === 'close-dialog') return closeDialog(target.closest('dialog'));
+      if (action === 'try-demo') { await api('/auth/demo', { method: 'POST', body: {} }); authLocked = false; closeDialog($('#auth-modal')); return initialize(); }
+      if (!state) return;
       if (action === 'toggle-details') { const detail = target.closest('.task-body').querySelector('.task-details'); detail.hidden = !detail.hidden; target.setAttribute('aria-expanded', String(!detail.hidden)); target.textContent = detail.hidden ? 'Explain steps' : 'Hide steps'; }
       else if (action === 'complete-task' || action === 'undo-task') { const result = await api(`/tasks/${taskId}`, { method: 'PATCH', body: { completed: action === 'complete-task' } }); await refresh(); toast(result.syncMessage || (action === 'complete-task' ? 'Task completion saved.' : 'Task marked as not completed.')); }
       else if (action === 'go-checkin') { selectedTaskId = taskId || target.dataset.id || null; showView('checkin'); }
@@ -373,7 +377,7 @@
       else if (action === 'retry-notification') { const unknown = target.dataset.unknown === 'true'; if (!confirm(unknown ? 'The earlier sending result is unknown. Check your provider first. Retrying may send a duplicate. Do you approve another attempt?' : 'Retry sending this saved notification? Current consent and recipient details will be checked again.')) return; await api(`/notifications/${target.dataset.id}/retry`, { method: 'POST', body: { confirmed: true, allowPossibleDuplicate: unknown } }); await renderNotificationActivity(); toast('Retry approved. The background worker will process it.'); }
       else if (action === 'reset-demo') { if (!confirm('Reset this browser’s demonstration care records? The original team database tasks will not be deleted.')) return; await api('/reset', { method: 'POST', body: { confirmed: true } }); selectedTaskId = null; selectedDate = null; weekStart = null; $('#checkin-result').hidden = true; await refresh(); renderMessages(); showView('home'); toast('This demonstration profile was reset.'); }
       else if (action === 'open-auth') openAuth();
-      else if (action === 'logout') { await api('/auth/logout', { method: 'POST' }); await refresh(); updateAuthUI(null); toast('You have been signed out. A fresh demo session has started.'); }
+      else if (action === 'logout') { await api('/auth/logout', { method: 'POST', body: {} }); location.reload(); }
     });
   });
   $('#chat-form').addEventListener('submit', event => { event.preventDefault(); sendChat($('#chat-input').value); });
@@ -395,29 +399,27 @@
   $('#upload-modal').addEventListener('close', closeCamera);
 
   // ─── Auth ───
+  let authLocked = false;
   async function checkAuth() {
-    try { const data = await api('/auth/me'); updateAuthUI(data.user); return data.user; }
-    catch { updateAuthUI(null); return null; }
+    const data = await api('/auth/me'); updateAuthUI(data); return data;
   }
-  function updateAuthUI(user) {
+  function updateAuthUI(session) {
     const btn = $('#sidebar-auth-btn'); if (!btn) return;
-    if (user) {
-      btn.textContent = `Account: ${user.email}`;
-      btn.dataset.action = 'logout';
-    } else {
-      btn.textContent = 'Account: Sign in';
-      btn.dataset.action = 'open-auth';
-    }
+    if (session?.user) { btn.textContent = `Sign out (${session.user.email})`; btn.dataset.action = 'logout'; }
+    else if (session?.demo) { btn.textContent = 'Demo mode · Sign in'; btn.dataset.action = 'open-auth'; }
+    else { btn.textContent = 'Account: Sign in'; btn.dataset.action = 'open-auth'; }
   }
-  function openAuth() {
+  // When sign-in is required the dialog cannot be dismissed until the visitor signs in or picks the demo.
+  function openAuth(required = false) {
     const dialog = $('#auth-modal');
+    authLocked = required; dialog.querySelector('.close-button').hidden = required;
     $('#auth-error').hidden = true;
-    $('#auth-email').value = '';
     $('#auth-password').value = '';
     $('#auth-status-text').textContent = '';
     openDialog(dialog);
     $('#auth-email').focus();
   }
+  $('#auth-modal').addEventListener('cancel', event => { if (authLocked) event.preventDefault(); });
   async function submitAuth(event) {
     event.preventDefault();
     const sub = event.submitter; if (!sub) return;
@@ -427,12 +429,11 @@
     const errorEl = $('#auth-error');
     errorEl.hidden = true;
     try {
-      const result = await api(`/auth/${mode}`, { method: 'POST', body: { email, password } });
-      closeDialog($('#auth-modal'));
+      const result = await api(`/auth/${mode}`, { method: 'POST', body: { name: $('#auth-name').value.trim(), email, password }, timeout: 30000 });
+      authLocked = false; closeDialog($('#auth-modal'));
       selectedTaskId = null; selectedDate = null; weekStart = null;
-      await refresh(); renderMessages();
-      updateAuthUI(result.user);
-      toast(mode === 'register' ? `Account created. Welcome, ${result.user.email}.` : `Signed in as ${result.user.email}.`);
+      await initialize();
+      toast(mode === 'register' ? `Account created. Welcome, ${result.user.name || result.user.email}.` : `Signed in as ${result.user.email}.`);
     } catch (error) {
       errorEl.textContent = error.message;
       errorEl.hidden = false;

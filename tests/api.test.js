@@ -25,6 +25,37 @@ async function request(url, { method = 'GET', body, headers = {}, session = true
 before(async () => { folder = await fs.mkdtemp(path.join(os.tmpdir(), 'carecompass-test-')); await start(); });
 after(async () => { await new Promise(resolve => server.close(resolve)); /* Retain isolated temp results for inspection. */ });
 
+test('sign-in is required, accounts start empty with their own name, and the demo stays available', async () => {
+  const auth = require('../lib/auth'); const original = { ...auth };
+  const accounts = new Map();
+  Object.assign(auth, {
+    ready: () => true,
+    register: async (email, password, name) => { accounts.set(email, { id: '11111111-1111-4111-8111-111111111111', email, name, password }); return auth.login(email, password); },
+    login: async (email, password) => { const user = accounts.get(email); if (!user || user.password !== password) throw new Error('That email and password do not match an account.'); return { ...user, accessToken: `token-${user.id}`, refreshToken: 'refresh' }; },
+    refresh: async () => null,
+    getUserByToken: async token => [...accounts.values()].find(user => `token-${user.id}` === token) || null
+  });
+  const app = await createApp({ dataFile: path.join(folder, 'auth-state.json'), skipExternal: true, requireAuth: true });
+  const hosted = app.listen(0, 'localhost'); await new Promise(resolve => hosted.once('listening', resolve));
+  const url = `http://localhost:${hosted.address().port}/api`;
+  let jar = {};
+  const call = async (route, method = 'GET', body) => {
+    const response = await fetch(url + route, { method, headers: { 'X-CareCompass-Client': 'web', 'Content-Type': 'application/json', Cookie: Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; ') }, body: body && JSON.stringify(body) });
+    for (const line of response.headers.getSetCookie()) { const [pair] = line.split(';'); const [key, value] = pair.split('='); if (value) jar[key] = value; else delete jar[key]; }
+    return { status: response.status, data: await response.json() };
+  };
+  try {
+    const blocked = await call('/state'); assert.equal(blocked.status, 401); assert.equal(blocked.data.signInRequired, true);
+    assert.equal((await call('/auth/me')).data.authRequired, true);
+    assert.equal((await call('/auth/register', 'POST', { name: 'Tan Mei Ling', email: 'mei@example.com', password: 'secret1' })).status, 201);
+    const mine = (await call('/state')).data; assert.equal(mine.profile.name, 'Tan Mei Ling'); assert.equal(mine.tasks.length, 0);
+    jar.cc_session = '11111111-1111-4111-8111-111111111111'; delete jar.cc_token; delete jar.cc_refresh;
+    assert.equal((await call('/state')).status, 401, 'a session cookie holding a user id is not a sign-in');
+    assert.equal((await call('/auth/login', 'POST', { email: 'mei@example.com', password: 'wrong' })).status, 401);
+    jar = {}; await call('/auth/demo', 'POST', {});
+    assert.equal((await call('/state')).data.profile.name, 'Mr Rahman');
+  } finally { await new Promise(resolve => hosted.close(resolve)); Object.assign(auth, original); }
+});
 test('only localhost and the configured Render hostname are accepted', async () => {
   const http = require('node:http');
   const old = process.env.RENDER_EXTERNAL_HOSTNAME; process.env.RENDER_EXTERNAL_HOSTNAME = 'carecompass.onrender.com';

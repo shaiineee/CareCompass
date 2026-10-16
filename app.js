@@ -2,7 +2,7 @@ require('dotenv').config({ quiet: true });
 const express = require('express');
 const multer = require('multer');
 const path = require('node:path');
-const { Store, today, uid, addDays, audit, seedProfile, DEMO_SOURCE } = require('./lib/store');
+const { Store, today, uid, addDays, audit, seedProfile, emptyProfile, DEMO_SOURCE } = require('./lib/store');
 const { evaluateCheckIn, extractCandidates, planAnswer, normalize } = require('./lib/care');
 const services = require('./lib/services');
 const { analyzeInstruction, sourceContains } = require('./lib/extraction');
@@ -55,6 +55,11 @@ async function createApp(options = {}) {
     next();
   });
   app.use(express.json({ limit: '1mb' }));
+  // Sign-in is required whenever Supabase Auth is available; without it the app stays a local demo.
+  const authRequired = options.requireAuth ?? (!options.skipExternal && auth.ready());
+  const cookieOptions = { httpOnly: true, sameSite: 'strict', secure: Boolean(process.env.RENDER), maxAge: 30 * 86400000, path: '/' };
+  const setAuthCookies = (res, user) => { res.cookie('cc_token', user.accessToken, cookieOptions); res.cookie('cc_refresh', user.refreshToken, cookieOptions); res.clearCookie('cc_demo', { path: '/' }); };
+  const clearAuthCookies = res => { res.clearCookie('cc_token', { path: '/' }); res.clearCookie('cc_refresh', { path: '/' }); };
   app.use('/api', async (req, res, next) => {
     try {
       if (!['GET', 'HEAD'].includes(req.method)) {
@@ -64,10 +69,21 @@ async function createApp(options = {}) {
           if (origin.host !== req.get('Host')) return res.status(403).json({ error: 'Cross-site requests are not allowed.' });
         }
       }
-      const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map(part => part.trim().split('=')));
+      const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map(part => part.trim().split('=')).filter(([key]) => key).map(([key, ...value]) => [key, decodeURIComponent(value.join('='))]));
       req.cookies = cookies;
-      let id = cookies.cc_session;
-      if (!id || !/^[0-9a-f-]{36}$/i.test(id)) { id = uid(); res.cookie('cc_session', id, { httpOnly: true, sameSite: 'strict', maxAge: 30 * 86400000, path: '/' }); }
+      // A signed-in user is identified only by a verified Supabase token, never by a cookie value alone.
+      let id = null;
+      if (cookies.cc_token) {
+        let user = await auth.getUserByToken(cookies.cc_token);
+        if (!user && cookies.cc_refresh) { const fresh = await auth.refresh(cookies.cc_refresh); if (fresh) { setAuthCookies(res, fresh); user = fresh; } }
+        if (user) { id = user.id; req.user = user; } else clearAuthCookies(res);
+      }
+      if (!id) {
+        id = cookies.cc_session;
+        if (!id || !/^[0-9a-f-]{36}$/i.test(id)) { id = uid(); res.cookie('cc_session', id, cookieOptions); }
+        req.demo = cookies.cc_demo === '1';
+        if (authRequired && !req.demo && !req.path.startsWith('/auth/') && req.path !== '/health') return res.status(401).json({ error: 'Please sign in or try the demo first.', signInRequired: true });
+      }
       req.sessionId = id;
       const isUpload = ['/plans/upload', '/medicines/scan'].includes(req.path);
       const key = `${id}:${isUpload ? 'upload' : 'api'}`;
@@ -78,7 +94,8 @@ async function createApp(options = {}) {
       limits.set(key, entry);
       if (entry.count > (isUpload ? 6 : 180)) return res.status(429).json({ error: 'Please wait a moment before trying again.' });
       if (limits.size > 2000) for (const [oldKey, old] of limits) if (now - old.start > 60000) limits.delete(oldKey);
-      await store.ensure(id);
+      if (req.user) await store.ensure(id, () => emptyProfile(req.user.name));
+      else if (!authRequired || req.demo) await store.ensure(id);
       next();
     } catch (error) { next(error); }
   });
@@ -89,61 +106,49 @@ async function createApp(options = {}) {
     return result;
   };
 
-  // ─── Auth routes (register, login, logout, me) ───
-  // Uses Supabase Auth server-side. On login, the Supabase user ID becomes the
-  // session ID, so each user's care profile is tied to their account.
-  app.post('/api/auth/register', async (req, res, next) => {
-    try {
-      const email = string(req.body.email, 254).toLowerCase();
-      const password = typeof req.body.password === 'string' ? req.body.password : '';
-      if (!email || !email.includes('@')) fail('Please enter a valid email address.');
-      if (password.length < 6) fail('Password must be at least 6 characters long.');
-      if (!auth.ready()) fail('Supabase is not configured. Ask your team to set SUPABASE_ENABLED, SUPABASE_URL and SUPABASE_SECRET_KEY.');
-      const user = await auth.register(email, password);
-      // Link the new user to this session so their existing demo data carries over.
-      await store.ensure(user.id);
-      res.cookie('cc_session', user.id, { httpOnly: true, sameSite: 'strict', maxAge: 30 * 86400000, path: '/' });
-      res.cookie('cc_token', user.accessToken || '', { httpOnly: true, sameSite: 'strict', maxAge: 30 * 86400000, path: '/' });
-      res.status(201).json({ ok: true, user: { id: user.id, email: user.email } });
-    } catch (error) { next(error); }
+  // ─── Auth routes (register, login, demo, logout, me) ───
+  // Uses Supabase Auth server-side. The verified Supabase user ID is the profile ID,
+  // so each account has its own care records, starting empty with the user's name.
+  const publicUser = user => ({ id: user.id, email: user.email, name: user.name });
+  app.post('/api/auth/register', async (req, res) => {
+    const name = string(req.body.name, 80);
+    const email = string(req.body.email, 254).toLowerCase();
+    const password = typeof req.body.password === 'string' ? req.body.password : '';
+    if (!name) fail('Please enter your name.');
+    if (!email || !email.includes('@')) fail('Please enter a valid email address.');
+    if (password.length < 6) fail('Password must be at least 6 characters long.');
+    if (!auth.ready()) fail('Sign-up is not available because Supabase is not configured.');
+    const user = await auth.register(email, password, name).catch(error => fail(error.message));
+    await store.ensure(user.id, () => emptyProfile(name));
+    setAuthCookies(res, user);
+    res.status(201).json({ ok: true, user: publicUser(user) });
   });
 
-  app.post('/api/auth/login', async (req, res, next) => {
-    try {
-      const email = string(req.body.email, 254).toLowerCase();
-      const password = typeof req.body.password === 'string' ? req.body.password : '';
-      if (!email || !password) fail('Please enter your email and password.');
-      if (!auth.ready()) fail('Supabase is not configured. Ask your team to set SUPABASE_ENABLED, SUPABASE_URL and SUPABASE_SECRET_KEY.');
-      const user = await auth.login(email, password);
-      // Migrate the anonymous session's data to the user's account if the user
-      // has no profile yet — this preserves any demo data they were exploring.
-      const existing = store.get(user.id);
-      const anonProfile = store.get(req.sessionId);
-      if (!existing && anonProfile) {
-        await store.change(user.id, data => { Object.assign(data, structuredClone(anonProfile)); audit(data, 'account_login_migrated_anonymous_data'); });
-      }
-      await store.ensure(user.id);
-      res.cookie('cc_session', user.id, { httpOnly: true, sameSite: 'strict', maxAge: 30 * 86400000, path: '/' });
-      res.cookie('cc_token', user.accessToken, { httpOnly: true, sameSite: 'strict', maxAge: 30 * 86400000, path: '/' });
-      res.json({ ok: true, user: { id: user.id, email: user.email } });
-    } catch (error) { next(error); }
+  app.post('/api/auth/login', async (req, res) => {
+    const email = string(req.body.email, 254).toLowerCase();
+    const password = typeof req.body.password === 'string' ? req.body.password : '';
+    if (!email || !password) fail('Please enter your email and password.');
+    if (!auth.ready()) fail('Sign-in is not available because Supabase is not configured.');
+    const user = await auth.login(email, password).catch(error => fail(error.message, 401));
+    await store.ensure(user.id, () => emptyProfile(user.name));
+    setAuthCookies(res, user);
+    res.json({ ok: true, user: publicUser(user) });
+  });
+
+  // The demo keeps the synthetic Mr Rahman profile available without an account.
+  app.post('/api/auth/demo', async (req, res) => {
+    res.cookie('cc_demo', '1', cookieOptions);
+    await store.ensure(req.sessionId);
+    res.json({ ok: true });
   });
 
   app.post('/api/auth/logout', (req, res) => {
-    // Start a fresh anonymous session.
-    const newId = uid();
-    res.cookie('cc_session', newId, { httpOnly: true, sameSite: 'strict', maxAge: 30 * 86400000, path: '/' });
-    res.clearCookie('cc_token', { path: '/' });
-    res.json({ ok: true, message: 'You have been signed out. A fresh demo session has started.' });
+    clearAuthCookies(res); res.clearCookie('cc_demo', { path: '/' });
+    res.cookie('cc_session', uid(), cookieOptions);
+    res.json({ ok: true, message: 'You have been signed out.' });
   });
 
-  app.get('/api/auth/me', async (req, res) => {
-    const token = req.cookies?.cc_token;
-    if (!token) return res.json({ user: null });
-    const user = await auth.getUserByToken(token);
-    if (!user) return res.json({ user: null });
-    res.json({ user });
-  });
+  app.get('/api/auth/me', (req, res) => res.json({ user: req.user ? publicUser(req.user) : null, demo: Boolean(req.demo), authRequired }));
 
   app.get('/api/health', async (req, res) => res.json({ ok: true, date: today(), storage: 'local persistent records', supabase: options.skipExternal ? { configured: false, connected: false, message: 'External services disabled for this test.' } : await services.checkSupabase(), ai: { configured: providers.providerStatus().ai, defaultMode: 'confirmed-plan guidance and source comparison' }, notifications: { configured: providers.providerStatus().email || providers.providerStatus().sms || Boolean(process.env.CAREGIVER_WEBHOOK_URL), ...providers.providerStatus() }, scheduler: scheduler.status(), cloud: cloud.status() }));
   app.get('/api/state', (req, res) => {
@@ -394,7 +399,7 @@ async function createApp(options = {}) {
   });
   app.post('/api/reset', async (req, res) => {
     if (req.body.confirmed !== true) fail('Confirm before resetting this browser’s demonstration records.');
-    await mutate(req, data => { const fresh = seedProfile(); for (const key of Object.keys(data)) delete data[key]; Object.assign(data, fresh); audit(data, 'demo_reset'); });
+    await mutate(req, data => { const fresh = req.user ? emptyProfile(data.profile.name) : seedProfile(); for (const key of Object.keys(data)) delete data[key]; Object.assign(data, fresh); audit(data, 'demo_reset'); });
     res.json({ ok: true });
   });
   app.get('/api/integrations/status', async (req, res) => res.json({ configuration: options.skipExternal ? {} : configuration.publicConfiguration(), providers: options.skipExternal ? { ai: false, email: false, sms: false } : providers.providerStatus(), scheduler: scheduler.status(), cloud: options.skipExternal ? { ready: false, message: 'External services disabled for testing.' } : await cloud.cloudReady(), supabase: options.skipExternal ? {} : await services.checkSupabase() }));
