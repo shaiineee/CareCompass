@@ -281,12 +281,20 @@ async function createApp(options = {}) {
     const label = options.skipExternal && !options.allowAI ? { ok: false, aiStatus: 'disabled-for-test' } : await readMedicineLabel({ buffer: req.file.buffer, mime }, ocr.text);
     if (label.ok) {
       const unmatched = [!label.matched.name && 'name', label.medicine.strength && !label.matched.strength && 'strength'].filter(Boolean);
-      const warning = unmatched.length ? `AI read this label, but OCR could not confirm the ${unmatched.join(' and ')}. Check them carefully against the packaging.` : 'AI read this label and OCR agrees on the name and strength. Still compare every line with the packaging.';
+      const about = label.medicine.aboutMedicine ? `About this medicine (general AI information, not from your label): ${label.medicine.aboutMedicine} ` : '';
+      const check = unmatched.length ? `AI read this label, but OCR could not confirm the ${unmatched.join(' and ')}. Check them carefully against the packaging.` : 'AI read this label and OCR agrees on the name and strength. Still compare every line with the packaging.';
+      const warning = `${about}${label.medicine.directions ? '' : 'No dosing directions were printed, so confirm the dose and time with your pharmacist. '}${check}`;
       return res.status(201).json(await mutate(req, data => makeDraft(data, label.sourceText, { filename: `${label.medicine.name} ${label.medicine.strength}`.trim(), method: 'AI medicine label reading', aiStatus: label.aiStatus, medicine: label.medicine, matched: label.matched, warning })));
     }
     if (label.aiStatus === 'not-a-medicine-label') fail(`${label.seen ? `This looks like ${label.seen}, not a medicine label.` : 'This does not look like a medicine label.'} Take a clear photo of the medicine box or pharmacy label.`, 422);
+    // Raw OCR of a photographed box is usually unreadable, so explain the failure instead of showing it.
     const busy = /provider-error-(429|5\d\d)|unavailable/.test(label.aiStatus);
-    const warning = label.aiStatus === 'not-configured' ? 'AI is not set up, so only OCR text was read. Add an AI vision model in Team Setup for better label reading.' : busy ? 'The AI service was busy, so only OCR text is shown. Close this and scan again in a moment for a better result.' : 'AI could not read this label, so only OCR text is shown. Check every line against the packaging.';
+    if (label.aiStatus === 'not-configured') fail('Medicine scanning needs the AI key on this server. Add AI_API_KEY (your Gemini key) to the server settings, then scan again.', 503);
+    if (busy) fail('The AI service is busy right now. Wait a few seconds and scan again.', 503);
+    if (label.aiStatus === 'label-unreadable') fail('The medicine name could not be read. Hold the box closer, in good light, with the name facing the camera, and scan again.', 422);
+    if (/provider-error-(400|401|403)/.test(label.aiStatus)) fail('The AI key on this server was rejected. Check AI_API_KEY in the server settings.', 503);
+    const warning = 'AI could not read this label, so only OCR text is shown. Check every line against the packaging.';
+    if (ocr.confidence !== undefined && ocr.confidence < 60) fail('This photo could not be read clearly. Hold the label closer, in good light, and scan again.', 422);
     res.status(201).json(await mutate(req, data => makeDraft(data, ocr.text, { filename: 'Scanned medicine label', method: ocr.method, confidence: ocr.confidence, aiStatus: label.aiStatus, warning })));
   });
   app.post('/api/plans/:id/confirm', async (req, res) => {

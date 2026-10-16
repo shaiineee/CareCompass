@@ -84,7 +84,10 @@ test('AI medicine label reading builds reviewable source text and cross-checks i
     const unconfirmed = await readMedicineLabel(image, 'blurry'); assert.deepEqual(unconfirmed.matched, { name: false, strength: false });
     global.fetch = reply({ isMedicineLabel: false });
     assert.equal((await readMedicineLabel(image, '')).aiStatus, 'not-a-medicine-label');
-    global.fetch = reply({ isMedicineLabel: true, name: 'Examplemed', directions: '' });
+    global.fetch = reply({ isMedicineLabel: true, name: 'Examplemed', strength: '500 mg', directions: '', purpose: 'For relief of pain' });
+    const boxOnly = await readMedicineLabel(image, '');
+    assert.equal(boxOnly.ok, true); assert.match(boxOnly.sourceText, /Printed use: For relief of pain/); assert.match(boxOnly.sourceText, /confirm the dose and timing with your pharmacist/);
+    global.fetch = reply({ isMedicineLabel: true, name: '', activeIngredient: '' });
     assert.equal((await readMedicineLabel(image, '')).aiStatus, 'label-unreadable');
   } finally { global.fetch = fetch; for (const key of keys) if (old[key] === undefined) delete process.env[key]; else process.env[key] = old[key]; }
 });
